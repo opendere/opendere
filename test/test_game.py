@@ -1,6 +1,6 @@
 import pytest
 
-from yandere import game
+from opendere import game
 
 
 def test_create_game_too_few():

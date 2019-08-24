@@ -1,6 +1,6 @@
 from numpy import random
 
-from yandere import roles
+from opendere import roles
 
 
 def weighted_choices(choice_weight_map, num_choices):
