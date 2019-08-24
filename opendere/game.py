@@ -12,7 +12,7 @@ def weighted_choices(choice_weight_map, num_choices):
 class User:
     def __init__(self, hostmask):
         """
-        hostmask (list[str]): a list of the hostmasks used to track disconnects/reconnects
+        hostmask (List[str]): a list of the hostmasks used to track disconnects/reconnects
         role (Role): the player's role
         alignment (Alignment): the player's alignment, potentially changed from the default
         alive (bool): whether a player is dead or alive
@@ -31,10 +31,10 @@ class Game:
         channel (str): the channel in which the game commands are to be sent
         prefix (str): the prefix used for game commands
         ticks (int): seconds until the end of the current phase
-        users (dict[str]User): players who've joined the game
+        users (Dict[str, User]): players who've joined the game
         allow_late (bool): whether a player can join the game during the first phase
         phase (int): current phase (1 day and 1 night is 2 phases)
-        hurry_requested_users (list[str]): users who've requested the phase be hurried
+        hurry_requested_users (List[str]): users who've requested the phase be hurried
         """
         self.name = name
         self.channel = channel
@@ -102,7 +102,7 @@ class Game:
         """
         return len(self.users) % 2 == 1
 
-    def _get_phase_name(self) -> str:
+    def _get_phase_name(self):
         return "night" if (self.phase + self._is_first_phase_day) % 2 else "day"
 
     def _phase_change(self):
@@ -111,7 +111,7 @@ class Game:
         """
         pass
 
-    def join_game(self, user, hostmask) -> list:
+    def join_game(self, user, hostmask):
         """
         join an existing (or create a new) opendare game. returns a list of messages to send to players
         """
@@ -159,7 +159,7 @@ class Game:
         """
         pass
 
-    def user_hurry(self, user) -> list:
+    def user_hurry(self, user):
         """
         request that the game be hurried
         """
