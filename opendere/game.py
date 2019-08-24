@@ -9,25 +9,51 @@ def weighted_choices(choice_weight_map, num_choices):
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
     return random.choice(choices, num_choices, p=probabilities)
 
+class User:
+    def __init__(self, hostmask):
+        """
+        hostmask (list[str]): a list of the hostmasks used to track disconnects/reconnects
+        role (Role): the player's role
+        alignment (Alignment): the player's alignment, potentially changed from the default
+        alive (bool): whether a player is dead or alive
+        vote (str): whom if anyone the player has voted for
+        """
+        self.hostmask = [hostmask]
+        self.role = roles.Civilian
+        self.alignment = self.role.default_alignment
+        self.alive = True
+        self.vote = str() 
 
 class Game:
-    def __init__(self, usernames):
+    def __init__(self, name='opendere', channel='#opendere', prefix=']', allow_late=False):
         """
-        usernames (list[str]): usernames in the game
+        name (str): the name of the game; may want to move this elsewhere for themes... 
+        channel (str): the channel in which the game commands are to be sent
+        prefix (str): the prefix used for game commands
+        ticks (int): seconds until the end of the current phase
+        users (dict[str]User): players who've joined the game
+        allow_late (bool): whether a player can join the game during the first phase
+        phase (int): current phase (1 day and 1 night is 2 phases)
+        hurry_requested_users (list[str]): users who've requested the phase be hurried
         """
-        self.lynch_votes = {}  # who has voted to lynch who
-        self.phase_num = 0  # current phase (1 day and 1 night is 2 phases)
-        self.hurry_requested_users = {}
+        self.name = name
+        self.channel = channel
+        self.prefix = prefix
+        self.ticks = -1
+        self.users = {}
+        self.allow_late = allow_late
+        self.phase = -1
+        self.hurry_requested_users = []
 
-        # all users start alive
-        self.users_alive = {username: True for username in usernames}
-
+    def _start_game(self):
+        """
+        initialize and start a new game
+        """
+        self.phase, self.ticks = 0, -1
         # get set of N roles, and apply them randomly to users
-        roles = self._select_roles(len(usernames))
+        # TODO: rejigger this
+        roles = self._select_roles(len(self.users))
         self.user_roles = {username: role for username, role in zip(usernames, random.shuffle(roles))}
-
-        # get day/night phase
-        self.is_day = self._is_first_phase_day(len(usernames))
 
     @staticmethod
     def _select_roles(num_users):
@@ -70,11 +96,62 @@ class Game:
             role_classes += weighted_choices(weighted_good_and_neutral_role_classes, num_users - 2)
             return [r() for r in role_classes]
 
-    def _is_first_phase_day(self, num_users):
+    def _is_first_phase_day(self):
         """
         algorithm: odd numbers = night
         """
-        return num_users % 1 == 1
+        return len(self.users) % 2 == 1
+
+    def _get_phase_name(self) -> str:
+        return "night" if (self.phase + self._is_first_phase_day) % 2 else "day"
+
+    def _phase_change(self):
+        """
+        handle events that happen during a phase change
+        """
+        pass
+
+    def join_game(self, user, hostmask) -> list:
+        """
+        join an existing (or create a new) opendare game. returns a list of messages to send to players
+        """
+        messages = list()
+
+        if not self.users:
+            # the first player to join kicks off the announcement and sets a timer
+            self.ticks = 60
+            messages.append((self.channel, f"a {self.name} game is starting in {self.ticks} seconds! please type {self.prefix}{self.name} to join!"))
+
+        if user in self.users:
+            # player is already in the game
+            if self.phase < 0:
+                messages.append((user, f"you're already joined the current game, with {len(self.users)} players, starting in {self.ticks} seconds."))
+            else:
+                messages.append((user, f"you're already playing in the current game."))
+
+        if user not in self.users:
+            if self.phase < 0:
+                self.users[user] = User(hostmask)
+                messages.append((user, f"you've joined the current game, with {len(self.users)} players, starting in {self.ticks} seconds."))
+            elif self.phase == 0 and self.allow_late:
+                self.users[user] = User(hostmask)
+                # TODO: assign a random role if joining late during the first phase...
+                messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
+                messages.append((user, f"you've joined the current game with role {self.users[nick].role.name} - {self.users[nick].role.description}"))
+            else:
+                messages.append((user, f"sorry, you cannot join a game that is already in progress. please wait for the current game to complete before trying again."))
+        return messages
+ 
+    def tick(self):
+        if self.ticks > 0:
+            self.ticks -= 1
+        if self.ticks == 0:
+            if self.phase < 0:
+                # TODO: self._start_game()
+                pass
+            else:
+                # TODO: self._phase_change()
+                pass
 
     def user_action(self, user, action):
         """
@@ -82,8 +159,14 @@ class Game:
         """
         pass
 
-    def user_hurry(self, user):
+    def user_hurry(self, user) -> list:
         """
         request that the game be hurried
         """
-        pass
+        messages = list()
+        if self.ticks < 0 and self.phase >= 0:
+            self.ticks = 60
+            messages.append((self.channel, f"people are getting impatient! the {self._get_phase_name()} roles have {self.ticks} seconds to make their decision before the {self._get_phase_name()} ends."))
+        else:
+            messages.append((user, f"you can't hurry the game right now."))
+        return messages
