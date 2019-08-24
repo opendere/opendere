@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # coding=utf-8
 """nekodere sopel module, running opendere"""
-# Licensed under MIT or something idk ask kitties
 
 from sopel import tools
 from sopel.module import commands, interval, rule, example
@@ -15,7 +14,7 @@ import opendere.roles
 def setup(bot=None):
     if not bot:
         return
-    bot.memory['allowed_channels'] = ['#opendere', '##libbies-test']
+    bot.memory['allowed_channels'] = ['#opendere']
     bot.memory['nekodere'] = None
 
 @commands('nekodere')
