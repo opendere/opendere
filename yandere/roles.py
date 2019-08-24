@@ -51,13 +51,6 @@ class HideAbility(Ability):
         pass
 
 
-class KillAbility(Ability):
-    name = 'kill'
-    action_description = 'single-handedly kill a player of their choosing'
-    def __call__(self, user):
-        pass
-
-
 class RevealAbility(Ability):
     name = 'reveal'
     action_description = 'reveal to all other players'
@@ -89,6 +82,12 @@ class CheckAbility(Ability):
 class GuardAbility(Ability):
     name = 'guard'
     action_description = 'protect a player from any danger'
+    def __call__(self, user):
+        pass
+
+class KillAbility(Ability):
+    name = 'kill'
+    action_description = 'single-handedly kill a player of their choosing'
     def __call__(self, user):
         pass
 
@@ -246,7 +245,7 @@ class Spy(Role):
     ]
 
 
-class Dayspy(Role):
+class DaySpy(Role):
     name = 'spy'
     is_yandere = False
     default_alignment = Alignment.good
@@ -264,7 +263,7 @@ class Esper(Role):
         SpyAbility(num_uses=1, phases=[Phase.night, Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Spy, Dayspy]
+    upgrades = [Spy, DaySpy]
 
 
 class Stalker(Role):
@@ -289,7 +288,7 @@ class Witness(Role):
 
 
 class Detective(Role):
-    name = 'snoop'
+    name = 'detective'
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [

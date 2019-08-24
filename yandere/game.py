@@ -1,5 +1,6 @@
-import random
-import roles
+from numpy import random
+
+from yandere import roles
 
 
 def weighted_choices(choice_weight_map, num_choices):
@@ -28,6 +29,7 @@ class Game:
         # get day/night phase
         self.is_day = self._is_first_phase_day(len(usernames))
 
+    @staticmethod
     def _select_roles(num_users):
         """
         Select N roles for the players of the game
@@ -44,10 +46,10 @@ class Game:
             roles.Guardian: 1, roles.Nurse: 2,
             roles.Civilian: 3, roles.Tsundere: 3
         }
-        weighted_neutral_role_classes = {r: 1 for r in roles.all_role_classes if r.alignment == Alignment.neutral}
+        weighted_neutral_role_classes = {r: 1 for r in roles.all_role_classes if r.default_alignment == roles.Alignment.neutral}
         weighted_good_and_neutral_role_classes = {
-            **weighted_good_roles_classes,
-            **weighted_neutral_roles_classes
+            **weighted_good_role_classes,
+            **weighted_neutral_role_classes
         }
 
         if num_users <= 3:
@@ -55,14 +57,17 @@ class Game:
 
         elif num_users <= 5:
             # choose 1 yandere, 3 to 4 good-aligned roles
-            role_classes = random.choice([r for r in roles.all_role_classes if r.is_yandere], 1)
+            role_classes = random.choice(
+                [r for r in roles.all_role_classes if r.is_yandere],
+                size=1
+            )
             role_classes += weighted_choices(weighted_good_role_classes, num_users - 1)
             return [r() for r in role_classes]
 
         elif num_users <= 8:
             # choose 2 yandere, 6, 7, or 8 non-yandere roles
-            roles = random.choice([r for r in all_role_classes if r.is_yandere], 2)
-            roles += weighted_choices(weighted_good_and_neutral_role_classes, num_users - 2)
+            role_classes = random.choice([r for r in all_role_classes if r.is_yandere], 2)
+            role_classes += weighted_choices(weighted_good_and_neutral_role_classes, num_users - 2)
             return [r() for r in role_classes]
 
     def _is_first_phase_day(self, num_users):

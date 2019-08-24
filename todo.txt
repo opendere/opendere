@@ -3,12 +3,17 @@ where does 2019-08-19 22:55:50	@ljrbot	luke-jr lights up bright and is revealed 
 
 
 Extra role suggestions:
-'chunibyo', someone who is given a false role and doesn't realize they aren't the role they are told until their action fails
+Chunibyo: someone who is given a false role and doesn't realize they aren't the role they are told until their action fails
     iamadude pulls out a plastic katana and it harmlessly bounces off justanotheruser's chest
 Drunk: gets the name of the yandere, but it's only right half the time
 Sheriff: blocks someone from doing their role at night.
 Ditto: looks like the role of the selected
-
+Ghost: takes over someones body to perform their role
+Heroic Nurse: weak nurse who dies if they successfully defend against a yandere attack
+nekomimi: has two lives
+role thief: take away an action from someones role
+time warper: makes voting run out in 10s or 10m once per game
+ballot rigger: steal a vote OR reassign vote OR something along those lines
 
 other suggestions:
 turn janitor into maid
