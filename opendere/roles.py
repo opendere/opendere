@@ -394,7 +394,7 @@ class Myth(Role):
 
 
 class NullCarrier(Role):
-    name = 'myth'
+    name = 'null carrier'
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
