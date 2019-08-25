@@ -6,7 +6,7 @@ def weighted_choices(choice_weight_map, num_choices):
     choices = list(choice_weight_map)
     weight_sum = sum(choice_weight_map.values())
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
-    return random.choice(choices, num_choices, p=probabilities)
+    return list(random.choice(choices, (num_choices,), p=probabilities))
 
 class User:
     def __init__(self, uid, nick):
@@ -100,6 +100,7 @@ class Game:
             **weighted_good_role_classes,
             **weighted_neutral_role_classes
         }
+        unweighted_yanderes = {r: 1 for r in roles.all_role_classes if r.is_yandere}
 
         # possibly needs tweaking for balance:
         #  4-6  players: 1 yandere

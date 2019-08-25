@@ -110,22 +110,32 @@ class VoteKillAbility(Ability):
 
 
 class Role:
-    def __init__(self, name, is_yandere, default_alignment, abilities, upgrades=[], appearances=None, safe_to_guard=True):
-        """
-        name (string): name of the role
-        is_yandare (boolean): killing all the yandere wins the game
-        default_alignment (boolean): the alignment at the start of game
-        ability (Ability): the ability of the role
-        upgrades (list[Role]): the possible roles that can be upgraded to
-        appearance (list[str]): the list of possible appearances a role can have to spies
-        safe_to_guard (boolean): whether GuardAbility dies when guarding you
-        """
-        self.name = name
-        self.default_alignment = default_alignment
-        self.abilities = abilities
-        self.upgrades = upgrades
-        self.appearances = appearances if appearances else [name]
-        self.safe_to_guard = safe_to_guard
+    """
+    name (string): name of the role
+    is_yandare (boolean): killing all the yandere wins the game
+    default_alignment (boolean): the alignment at the start of game
+    ability (Ability): the ability of the role
+    upgrades (list[Role]): the possible roles that can be upgraded to
+    appearance (list[str]): the list of possible appearances a role can have to spies
+    safe_to_guard (boolean): whether GuardAbility dies when guarding you
+    """
+    name = None
+    is_yandere = None
+    default_alignment = None
+    abilities = []
+    upgrades = []
+    appearances = None
+    safe_to_guard = True
+
+    def __init__(self):
+        assert isinstance(self.name, str)
+        assert isinstance(self.is_yandere, bool)
+        assert isinstance(self.default_alignment, Alignment)
+        assert isinstance(self.safe_to_guard, bool)
+
+        self.abilities = list(self.abilities)
+        self.upgrades = list(self.upgrades)
+        self.appearances = self.appearances or [self.name]
 
     @property
     def description(self):
