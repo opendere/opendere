@@ -64,11 +64,8 @@ class Game:
         roles = self._select_roles(len(self.users))
         random.shuffle(roles)
         for i, uid in enumerate(self.users):
-            self.users[uid].role = roles[i]()
-            if hasattr(self.users[uid].role, 'appearances'):
-                self.users[uid].appearance = random.choice(self.users[uid].role.appearances)
-            else:
-                self.users[uid].appearance = self.users[uid].role.name
+            self.users[uid].role = roles[i]
+            self.users[uid].appearance = random.choice(self.users[uid].role.appearances)
             messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
 
         messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))

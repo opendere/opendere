@@ -53,6 +53,7 @@ class HideAbility(Ability):
 class RevealAbility(Ability):
     name = 'reveal'
     action_description = 'reveal to all other players'
+    command = 'reveal'
     def __call__(self, user):
         pass
 
