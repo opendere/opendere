@@ -26,10 +26,10 @@ class User:
         self.vote = str()
 
 class Game:
-    def __init__(self, name='opendere', channel='#opendere', prefix=']', allow_late=False):
+    def __init__(self, channel='#opendere', prefix=']', allow_late=False):
         """
-        name (str): the name of the game; may want to move this elsewhere for themes... 
         channel (str): the channel in which the game commands are to be sent
+        name (str): the name of the current game, probably will want to move this elsewhere for themes 
         prefix (str): the prefix used for game commands
         ticks (int): seconds until the end of the current phase
         users (Dict[str, User]): players who've joined the game
@@ -37,14 +37,17 @@ class Game:
         phase (int): current phase (1 day and 1 night is 2 phases)
         hurry_requested_users (List[str]): users who've requested the phase be hurried
         """
-        self.name = name
         self.channel = channel
+        self.name = channel.lstrip('#')
         self.prefix = prefix
         self.ticks = None
         self.users = {}
         self.allow_late = allow_late
         self.phase = None
         self.hurry_requested_users = []
+
+    def reset(self):
+        self.__init__()
 
     def _start_game(self):
         """
@@ -59,13 +62,14 @@ class Game:
 
         roles = self._select_roles(len(self.users))
         random.shuffle(roles)
-        for i in range(len(self.users)):
-            self.users[list(self.users)[i]].role = roles[i]
-        for uid in self.users:
-            messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.name} are {self.users[uid].role.description} "))
+        for i, uid in enumerate(self.users):
+            self.users[uid].role = roles[i]
+            messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.name} are {self.users[uid].role.description}"))
+
         messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))
         messages.append((self.channel, f"this game starts at {self.phase_name.upper()}. discuss!"))
         messages.append((self.channel, f"current players: {', '.join([self.users[uid].nick for uid in self.users])}."))
+
         return messages
 
     @staticmethod
