@@ -4,10 +4,10 @@ from opendere import roles
 
 
 def weighted_choices(choice_weight_map, num_choices):
-    choices = sorted(choice_weight_map)
+    choices = sorted(choice_weight_map, key=lambda x:str(x.name))
     weight_sum = sum(choice_weight_map.values())
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
-    return random.choice(choices, num_choices, p=probabilities)
+    return list(random.choice(choices, (num_choices,), p=probabilities))
 
 
 class Game:
@@ -51,22 +51,20 @@ class Game:
             **weighted_good_role_classes,
             **weighted_neutral_role_classes
         }
+        unweighted_yanderes = {r: 1 for r in roles.all_role_classes if r.is_yandere}
 
         if num_users <= 3:
             raise ValueError('A game requires at least 4 players')
 
         elif num_users <= 5:
             # choose 1 yandere, 3 to 4 good-aligned roles
-            role_classes = random.choice(
-                [r for r in roles.all_role_classes if r.is_yandere],
-                size=1
-            )
+            role_classes = weighted_choices(unweighted_yanderes, 1)
             role_classes += weighted_choices(weighted_good_role_classes, num_users - 1)
             return [r() for r in role_classes]
 
         elif num_users <= 8:
             # choose 2 yandere, 6, 7, or 8 non-yandere roles
-            role_classes = random.choice([r for r in all_role_classes if r.is_yandere], 2)
+            role_classes = weighted_choices(unweighted_yanderes, 2)
             role_classes += weighted_choices(weighted_good_and_neutral_role_classes, num_users - 2)
             return [r() for r in role_classes]
 
