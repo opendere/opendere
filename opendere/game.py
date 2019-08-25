@@ -22,7 +22,6 @@ class User:
         self.nick = nick
         self.role = None
         self.alignment = None
-        self.appearances = None
         self.alive = True
         self.vote = str()
 
@@ -65,7 +64,6 @@ class Game:
         random.shuffle(roles)
         for i, uid in enumerate(self.users):
             self.users[uid].role = roles[i]
-            self.users[uid].appearance = random.choice(self.users[uid].role.appearances)
             messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
 
         messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))

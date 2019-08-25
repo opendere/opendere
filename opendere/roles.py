@@ -1,6 +1,7 @@
 from enum import Enum
 import inspect
 import math
+from numpy import random
 
 class Alignment(Enum):
     good = 0
@@ -137,11 +138,15 @@ class Role:
         self.abilities = list(self.abilities)
         self.upgrades = list(self.upgrades)
         self.appearances = self.appearances or [self.name]
+        self.appear_as = random.choice(self.appearances)
 
     @property
     def description(self):
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        return f"{self.name} have the ability to {', '.join([ability.description for ability in self.abilities])}."
+        if self.appear_as != self.name:
+            return f"a {self.name} has the ability to {', '.join([ability.description for ability in self.abilities])}. you appear as a {self.appear_as}"
+        else:
+            return f"a {self.name} has the ability to {', '.join([ability.description for ability in self.abilities])}."
 
 # TODO: change all classes to PARTIALS
 
