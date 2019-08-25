@@ -17,6 +17,15 @@ def setup(bot=None):
     bot.memory['allowed_channels'] = ['#opendere']
     bot.memory['nekodere'] = None
 
+@interval(1)
+def tick(bot):
+    """
+    tick down the timer for game state, i.e. the start timer or hurry timer
+    """
+    if not bot.memory['nekodere']:
+        return
+    bot.memory['nekodere'].tick()
+
 @commands('nekodere')
 @example('!nekodere - start a new game')
 def join_game(bot, trigger):
@@ -28,23 +37,26 @@ def join_game(bot, trigger):
         return
     if not bot.memory['nekodere']:
         bot.memory['nekodere'] = opendere.game.Game('nekodere', trigger.sender, prefix='!')
-    for msg in bot.memory['nekodere'].join_game(trigger.nick, trigger.hostmask):
+    for msg in bot.memory['nekodere'].join_game(trigger.hostmask, trigger.nick):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
             bot.say('\x02' + text + '\x0f', recipient)
         else:
+            recipient = recipient.split('!')[0]
             bot.notice(text, recipient)
 
+# can likely replace all of these below commands with a single regex
 @commands('hurry|nekodere hurry')
 @example('!hurry - hurry the current phase')
 def hurry(bot, trigger):
     if not bot.memory['nekodere']:
         return
-    for msg in bot.memory['nekodere'].user_hurry(trigger.nick):
+    for msg in bot.memory['nekodere'].user_hurry(trigger.hostmask):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
             bot.say('\x02' + text + '\x0f', recipient)
         else:
+            recipient = recipient.split('!')[0]
             bot.notice(text, recipient)
 
 @commands('vote|nekodere vote')
@@ -52,18 +64,10 @@ def hurry(bot, trigger):
 def vote(bot, trigger):
     if not bot.memory['nekodere']:
         return
-    for msg in bot.memory['nekodere'].user_action(trigger.nick, 'vote to kill'):
+    for msg in bot.memory['nekodere'].user_action(trigger.hostmask, 'vote'):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
             bot.say('\x02' + text + '\x0f', recipient)
         else:
+            recipient = recipient.split('!')[0]
             bot.notice(text, recipient)
-
-@interval(1)
-def tick(bot):
-    """
-    tick down the timer for game state, i.e. the start timer or hurry timer
-    """
-    if not bot.memory['nekodere']:
-        return
-    bot.memory['nekodere'].tick()
