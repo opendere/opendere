@@ -24,7 +24,16 @@ def tick(bot):
     """
     if not bot.memory['nekodere']:
         return
-    bot.memory['nekodere'].tick()
+    messages = bot.memory['nekodere'].tick()
+    if not messages:
+        return
+    for msg in messages:
+        recipient, text = msg
+        if recipient in bot.memory['allowed_channels']:
+            bot.say('\x02' + text + '\x0f', recipient)
+        else:
+            recipient = recipient.split('!')[0]
+            bot.notice(text, recipient)
 
 @commands('nekodere')
 @example('!nekodere - start a new game')
