@@ -2,7 +2,6 @@ from enum import Enum
 import inspect
 import math
 
-
 class Alignment(Enum):
     good = 0
     evil = 1
@@ -27,10 +26,10 @@ class Ability:
 
     @property
     def description(self):
-        return '{} during the {} {} time(s). Command: `{}`'.format(
+        return '{} during the {}, {} time(s), using the command `{}`'.format(
             self.action_description,
-            ' or '.join(self.phases),
-            self.num_uses,
+            ' or '.join([phase.name for phase in self.phases]),
+            self.num_uses if self.num_uses != math.inf else 'unlimited',
             self.command
         )
 
@@ -61,6 +60,7 @@ class RevealAbility(Ability):
 class SpyAbility(Ability):
     name = 'spy'
     action_description = 'inspect another players role'
+    command = 'spy <user>'
     def __call__(self, user):
         pass
 
@@ -68,6 +68,7 @@ class SpyAbility(Ability):
 class StalkAbility(Ability):
     name = 'stalk'
     action_description = 'learn where another player goes'
+    command = 'stalk <user>'
     def __call__(self, user):
         pass
 
@@ -75,6 +76,7 @@ class StalkAbility(Ability):
 class CheckAbility(Ability):
     name = 'check'
     action_description = 'inspect another players alignment'
+    command = 'check <user>'
     def __call__(self, user):
         pass
 
@@ -82,12 +84,14 @@ class CheckAbility(Ability):
 class GuardAbility(Ability):
     name = 'guard'
     action_description = 'protect a player from any danger'
+    command = 'guard <user>' 
     def __call__(self, user):
         pass
 
 class KillAbility(Ability):
     name = 'kill'
     action_description = 'single-handedly kill a player of their choosing'
+    command = 'kill <user>'
     def __call__(self, user):
         pass
 
@@ -100,12 +104,13 @@ class VoteKillAbility(Ability):
     """
     name = 'vote to kill'
     action_description = 'vote with others to kill'
+    command = 'vote <user>'
     def __call__(self, user):
         pass
 
 
 class Role:
-    def __init__(self, name, is_yandere, default_alignment, ability, upgrades=[], appearances=None, safe_to_guard=True):
+    def __init__(self, name, is_yandere, default_alignment, abilities, upgrades=[], appearances=None, safe_to_guard=True):
         """
         name (string): name of the role
         is_yandare (boolean): killing all the yandere wins the game
@@ -117,15 +122,15 @@ class Role:
         """
         self.name = name
         self.default_alignment = default_alignment
-        self.ability = ability
+        self.abilities = abilities
         self.upgrades = upgrades
-        self.appearances = appearances or [name]
+        self.appearances = appearances if appearances else [name]
         self.safe_to_guard = safe_to_guard
 
     @property
     def description(self):
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        return f'{self.name} have the ability ton {self.ability.description}. You appear as {self.appearances} to spies.'
+        return f"{self.name} have the ability to {', '.join([ability.description for ability in self.abilities])}."
 
 # TODO: change all classes to PARTIALS
 

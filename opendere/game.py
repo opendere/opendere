@@ -22,6 +22,7 @@ class User:
         self.nick = nick
         self.role = None
         self.alignment = None
+        self.appearances = None
         self.alive = True
         self.vote = str()
 
@@ -29,7 +30,7 @@ class Game:
     def __init__(self, channel='#opendere', prefix=']', allow_late=False):
         """
         channel (str): the channel in which the game commands are to be sent
-        name (str): the name of the current game, probably will want to move this elsewhere for themes 
+        name (str): the name of the current game, probably will want to move this elsewhere for themes
         prefix (str): the prefix used for game commands
         ticks (int): seconds until the end of the current phase
         users (Dict[str, User]): players who've joined the game
@@ -63,8 +64,12 @@ class Game:
         roles = self._select_roles(len(self.users))
         random.shuffle(roles)
         for i, uid in enumerate(self.users):
-            self.users[uid].role = roles[i]
-            messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.name} are {self.users[uid].role.description}"))
+            self.users[uid].role = roles[i]()
+            if hasattr(self.users[uid].role, 'appearances'):
+                self.users[uid].appearance = random.choice(self.users[uid].role.appearances)
+            else:
+                self.users[uid].appearance = self.users[uid].role.name
+            messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
 
         messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))
         messages.append((self.channel, f"this game starts at {self.phase_name.upper()}. discuss!"))
@@ -108,7 +113,7 @@ class Game:
         ))
 
         role_classes += list(weighted_choices(weighted_good_and_neutral_role_classes, num_users - num_yanderes))
-        return [role for role in role_classes]
+        return [role() for role in role_classes]
 
     def _is_first_phase_day(self):
         """
@@ -158,7 +163,7 @@ class Game:
             else:
                 messages.append((uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
         return messages
- 
+
     def tick(self):
         if self.ticks == None:
             return

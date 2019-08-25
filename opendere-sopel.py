@@ -17,7 +17,7 @@ command_prefix = '!'
 def setup(bot=None):
     if not bot:
         return
-    bot.memory['allowed_channels'] = allowed_channels 
+    bot.memory['allowed_channels'] = allowed_channels
     bot.memory['games'] = dict()
 
 @interval(1)
@@ -46,7 +46,7 @@ def join_game(bot, trigger):
     join an existing (or start a new) opendere instance
     """
     if trigger.sender not in bot.memory['allowed_channels']:
-        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['allowed_channels'])}") 
+        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['allowed_channels'])}")
         return
     if trigger.sender not in bot.memory['games']:
         bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, command_prefix)
@@ -64,7 +64,7 @@ def reset(bot, trigger):
     if trigger.sender not in bot.memory['allowed_channels']:
         return
     if trigger.sender not in bot.memory['games']:
-        bot.say(f"there isn't a running game in {trigger.sender} to end.") 
+        bot.say(f"there isn't a running game in {trigger.sender} to end.")
         return
     bot.memory['games'][trigger.sender].reset()
     del bot.memory['games'][trigger.sender]
