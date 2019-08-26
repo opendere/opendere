@@ -143,7 +143,7 @@ class Role:
     @property
     def description(self):
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        return "a {} has the ability to {}. {}{}".format(
+        return "a {} can {}. {}{}".format(
             self.name,
             ', and to '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
             "be careful of disguised roles which may appear as other roles. " if 'spy' in [ability.name for ability in self.abilities] else '',

@@ -67,7 +67,7 @@ class Game:
             self.users[uid].role = roles[i]
             messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
 
-        messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))
+        messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine who the yanderes are."))
         if len(self.users) % 2:
             messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. if you have a night role, send {self.bot_name} any commands you may have, or 'abstain' to abstain from using any abilities."))
         else:
@@ -154,9 +154,10 @@ class Game:
             # allow a player to join the game late if it's the very first phase of the game
             elif self.allow_late and self.phase == 0:
                 self.users[uid] = User(uid, nick)
-                # TODO: assign a random role if joining late...
+                # a 1 in 6 chance of being a yandere
+                self.users[uid].role = random.choice(self._select_roles(6))
                 messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
-                messages.append((user, f"you've joined the current game with role {self.users[uid].role.name} - {self.users[uid].role.description}"))
+                messages.append((uid, f"you've joined the current game with role {self.users[uid].role.name} - {self.users[uid].role.description}"))
 
             else:
                 messages.append((uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
