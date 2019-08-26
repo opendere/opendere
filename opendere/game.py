@@ -26,24 +26,25 @@ class User:
         self.vote = str()
 
 class Game:
-    def __init__(self, channel, bot_name, prefix='!', allow_late=False):
+    def __init__(self, channel, bot_name, name=None, prefix='!', allow_late=False):
         """
         channel (str): the channel in which the game commands are to be sent
+        bot_name (str): the name of the bot running the game; players are directed to PM the bot by name
         name (str): the name of the current game, probably will want to move this elsewhere for themes
         prefix (str): the prefix used for game commands
-        ticks (int): seconds until the end of the current phase
-        users (Dict[str, User]): players who've joined the game
         allow_late (bool): whether a player can join the game during the first phase
+        users (Dict[str, User]): players who've joined the game
+        ticks (int): seconds until the end of the current phase
         phase (int): current phase (1 day and 1 night is 2 phases)
         hurry_requested_users (List[str]): users who've requested the phase be hurried
         """
         self.channel = channel
-        self.name = channel.lstrip('#')
         self.bot_name = bot_name 
+        self.name = name or channel.lstrip('#')
         self.prefix = prefix
-        self.ticks = None
-        self.users = {}
         self.allow_late = allow_late
+        self.users = {}
+        self.ticks = None
         self.phase = None
         self.hurry_requested_users = []
 
@@ -121,7 +122,7 @@ class Game:
 
     @property
     def day_num(self) -> int:
-        return (len(self.users) % 2 + 1 + self.phase) % 2
+        return (2 - (len(self.users) % 2) + self.phase) // 2
 
     def _phase_change(self):
         """

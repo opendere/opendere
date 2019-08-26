@@ -77,7 +77,7 @@ class StalkAbility(Ability):
 
 class CheckAbility(Ability):
     name = 'check'
-    action_description = 'inspect another players alignment'
+    action_description = 'inspect another player\'s alignment'
     command = 'check <user>'
     def __call__(self, user):
         pass
