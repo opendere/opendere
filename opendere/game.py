@@ -22,8 +22,7 @@ class User:
         self.nick = nick
         self.role = None
         self.alignment = None
-        self.alive = True
-        self.vote = str()
+        self.is_alive = True
 
 class Game:
     def __init__(self, channel, bot_name, name=None, prefix='!', allow_late=False):
@@ -37,6 +36,8 @@ class Game:
         ticks (int): seconds until the end of the current phase
         phase (int): current phase (1 day and 1 night is 2 phases)
         hurry_requested_users (List[str]): users who've requested the phase be hurried
+        votes (Dict[User, User]): users and who've they've voted to kill
+        actions (Dict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot_name = bot_name 
@@ -47,6 +48,11 @@ class Game:
         self.ticks = None
         self.phase = None
         self.hurry_requested_users = []
+        # list of votes is `[self.votes[voter] for voter in self.votes]`
+        # maybe should be moved to User for `[self.users[user].vote for user in self.users]` instead
+        # not sure which is going to be better. the same goes for actions too.
+        self.votes = {}
+        self.actions = {}
 
     def reset(self):
         self.__init__()
@@ -59,21 +65,30 @@ class Game:
         self.phase, self.ticks = 0, None
         if len(self.users) <= 3:
             messages.append((self.channel, f"there aren't enough players to start a {self.name} game. try again later."))
-            self.users = {}
+            self.reset()
             return messages
 
         roles = self._select_roles(len(self.users))
         random.shuffle(roles)
-        for i, uid in enumerate(self.users):
-            self.users[uid].role = roles[i]
-            messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
+        for i, user in enumerate(self.users):
+            self.users[user].role = roles[i]
+            messages.append((user, f"you're a {self.users[user].role.name}. {self.users[user].role.description}"))
 
-        messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine who the yanderes are."))
+        messages.append((self.channel, "welcome to {}. There {} {} {}. it's your job to determine who the {} {}.".format(
+                    self.name,
+                    'is' if self.yanderes_alive == 1 else 'are',
+                    self.yanderes_alive,
+                    'yandere' if self.yanderes_alive == 1 else 'yanderes',
+                    'yandere' if self.yanderes_alive == 1 else 'yanderes',
+                    'is' if self.yanderes_alive == 1 else 'are'
+        )))
+
         if len(self.users) % 2:
-            messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. if you have a night role, send {self.bot_name} any commands you may have, or 'abstain' to abstain from using any abilities."))
+            messages.append((self.channel, f"this game starts on the {self.phase_name.upper()} of day {self.day_num}. if you have a night role, please send {self.bot_name} a private message with any commands you may have, or with 'abstain' to abstain from using any abilities."))
+
         else:
             messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. discuss!"))
-        messages.append((self.channel, f"current players: {', '.join([self.users[uid].nick for uid in self.users])}."))
+        messages.append((self.channel, f"current players: {', '.join([self.users[user].nick for user in self.users])}."))
 
         return messages
 
@@ -117,12 +132,25 @@ class Game:
         return [role() for role in role_classes]
 
     @property
-    def phase_name(self):
+    def phase_name(self) -> str:
+        """
+        the day/night phase as a string
+        """
         return "night" if (self.phase + len(self.users)) % 2 else "day"
 
     @property
     def day_num(self) -> int:
+        """
+        the current day as a number, e.g. "it is Day 2". nights start with 0
+        """
         return (2 - (len(self.users) % 2) + self.phase) // 2
+
+    @property
+    def yanderes_alive(self) -> int:
+        """
+        number of yanderes still alive
+        """
+        return len([user for user in self.users if self.users[user].is_alive and self.users[user].role.is_yandere])
 
     def _phase_change(self):
         """
@@ -130,9 +158,9 @@ class Game:
         """
         pass
 
-    def join_game(self, uid, nick):
+    def join_game(self, user, nick):
         """
-        uid (str): a unique user identifier, such as nick!user@host for irc, or discord's user.id
+        user (str): a unique user identifier, such as nick!user@host for irc, or discord's user.id
         nick (str): the player's nickname
         """
         messages = list()
@@ -141,27 +169,27 @@ class Game:
             self.ticks = 60
             messages.append((self.channel, f"a {self.name} game is starting in {self.ticks} seconds! please type {self.prefix}{self.name} to join!"))
 
-        if uid in self.users:
+        if user in self.users:
             if self.phase is None:
-                messages.append((uid, f"you're already in the current game, which is starting in {self.ticks} seconds."))
+                messages.append((user, f"you're already in the current game, which is starting in {self.ticks} seconds."))
             else:
-                messages.append((uid, f"you're already playing in the current game."))
+                messages.append((user, f"you're already playing in the current game."))
 
-        elif uid not in self.users:
+        elif user not in self.users:
             if self.phase is None:
-                self.users[uid] = User(uid, nick)
-                messages.append((uid, f"you've joined the current game, which is starting in {self.ticks} seconds."))
+                self.users[user] = User(user, nick)
+                messages.append((user, f"you've joined the current game, which is starting in {self.ticks} seconds."))
 
             # allow a player to join the game late if it's the very first phase of the game
             elif self.allow_late and self.phase == 0:
-                self.users[uid] = User(uid, nick)
+                self.users[user] = User(user, nick)
                 # a 1 in 6 chance of being a yandere
-                self.users[uid].role = random.choice(self._select_roles(6))
+                self.users[user].role = random.choice(self._select_roles(6))
                 messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
-                messages.append((uid, f"you've joined the current game with role {self.users[uid].role.name} - {self.users[uid].role.description}"))
+                messages.append((user, f"you've joined the current game with role {self.users[user].role.name} - {self.users[user].role.description}"))
 
             else:
-                messages.append((uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
+                messages.append((user, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
         return messages
 
     def tick(self):
@@ -179,19 +207,19 @@ class Game:
                 # TODO: self._phase_change()
                 pass
 
-    def user_action(self, uid, action):
+    def user_action(self, user, action):
         """
         determines whether a user has the ability to take an action, then executes the action
         """
         pass
 
-    def user_hurry(self, uid):
+    def user_hurry(self, user):
         """
         request that the game be hurried
         """
         messages = list()
 
-        if uid not in self.users:
+        if user not in self.users:
             messages.append((self.channel, f"you're not playing in the current game."))
 
         elif self.ticks == None and self.phase >= 0:
@@ -199,5 +227,5 @@ class Game:
             messages.append((self.channel, f"people are getting impatient! the {self.phase} roles have {self.ticks} seconds to make their decisions before the {self.phase} ends."))
 
         else:
-            messages.append((uid, f"you can't hurry the game right now."))
+            messages.append((user, f"you can't hurry the game right now."))
         return messages
