@@ -14,6 +14,9 @@ import opendere.roles
 allowed_channels = ['#opendere']
 command_prefix = '!'
 
+def bold(msg):
+    return f"\x02{msg}\x0f"
+
 def setup(bot=None):
     if not bot:
         return
@@ -34,7 +37,7 @@ def tick(bot):
         for msg in messages:
             recipient, text = msg
             if recipient in bot.memory['allowed_channels']:
-                bot.say('\x02' + text + '\x0f', recipient)
+                bot.say(bold(text), recipient)
             else:
                 recipient = recipient.split('!')[0]
                 bot.notice(text, recipient)
@@ -49,11 +52,11 @@ def join_game(bot, trigger):
         # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['allowed_channels'])}")
         return
     if trigger.sender not in bot.memory['games']:
-        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, command_prefix)
+        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, command_prefix)
     for msg in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+            bot.say(bold(text), recipient)
         else:
             recipient = recipient.split('!')[0]
             bot.notice(text, recipient)
@@ -79,7 +82,7 @@ def hurry(bot, trigger):
     for msg in bot.memory['games'][trigger.sender].user_hurry(trigger.hostmask):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+            bot.say(bold(text), recipient)
         else:
             recipient = recipient.split('!')[0]
             bot.notice(text, recipient)
@@ -92,7 +95,7 @@ def vote(bot, trigger):
     for msg in bot.memory['games'][trigger.sender].user_action(trigger.hostmask, 'vote'):
         recipient, text = msg
         if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+            bot.say(bold(text), recipient)
         else:
             recipient = recipient.split('!')[0]
             bot.notice(text, recipient)

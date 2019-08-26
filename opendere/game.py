@@ -26,7 +26,7 @@ class User:
         self.vote = str()
 
 class Game:
-    def __init__(self, channel='#opendere', prefix=']', allow_late=False):
+    def __init__(self, channel, bot_name, prefix='!', allow_late=False):
         """
         channel (str): the channel in which the game commands are to be sent
         name (str): the name of the current game, probably will want to move this elsewhere for themes
@@ -39,6 +39,7 @@ class Game:
         """
         self.channel = channel
         self.name = channel.lstrip('#')
+        self.bot_name = bot_name 
         self.prefix = prefix
         self.ticks = None
         self.users = {}
@@ -67,7 +68,10 @@ class Game:
             messages.append((uid, f"you're a {self.users[uid].role.name}. {self.users[uid].role.description}"))
 
         messages.append((self.channel, f"welcome to {self.name}. there are {len([uid for uid in self.users if self.users[uid].role.is_yandere])} yanderes. it's your job to determine the yanderes."))
-        messages.append((self.channel, f"this game starts at {self.phase_name.upper()}. discuss!"))
+        if len(self.users) % 2:
+            messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. if you have a night role, send {self.bot_name} any commands you may have, or 'abstain' to abstain from using any abilities."))
+        else:
+            messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. discuss!"))
         messages.append((self.channel, f"current players: {', '.join([self.users[uid].nick for uid in self.users])}."))
 
         return messages
@@ -111,15 +115,13 @@ class Game:
         role_classes += list(weighted_choices(weighted_good_and_neutral_role_classes, num_users - num_yanderes))
         return [role() for role in role_classes]
 
-    def _is_first_phase_day(self):
-        """
-        algorithm: odd numbers = night
-        """
-        return len(self.users) % 2 == 1
-
     @property
     def phase_name(self):
         return "night" if (self.phase + len(self.users)) % 2 else "day"
+
+    @property
+    def day_num(self) -> int:
+        return (len(self.users) % 2 + 1 + self.phase) % 2
 
     def _phase_change(self):
         """
@@ -175,20 +177,25 @@ class Game:
                 # TODO: self._phase_change()
                 pass
 
-    def user_action(self, user, action):
+    def user_action(self, uid, action):
         """
         determines whether a user has the ability to take an action, then executes the action
         """
         pass
 
-    def user_hurry(self, user):
+    def user_hurry(self, uid):
         """
         request that the game be hurried
         """
         messages = list()
-        if self.ticks == None and self.phase >= 0:
+
+        if uid not in self.users:
+            messages.append((self.channel, f"you're not playing in the current game."))
+
+        elif self.ticks == None and self.phase >= 0:
             self.ticks = 60
-            messages.append((self.channel, f"people are getting impatient! the {self._get_phase_name()} roles have {self.ticks} seconds to make their decisions before the {self._get_phase_name()} ends."))
+            messages.append((self.channel, f"people are getting impatient! the {self.phase} roles have {self.ticks} seconds to make their decisions before the {self.phase} ends."))
+
         else:
-            messages.append((user, f"you can't hurry the game right now."))
+            messages.append((uid, f"you can't hurry the game right now."))
         return messages

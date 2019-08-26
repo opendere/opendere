@@ -27,10 +27,10 @@ class Ability:
 
     @property
     def description(self):
-        return '{} during the {}, {} time(s), using the command `{}`'.format(
+        return '{} during the {}, {}, using the command `{}`'.format(
             self.action_description,
             ' or '.join([phase.name for phase in self.phases]),
-            self.num_uses if self.num_uses != math.inf else 'unlimited',
+            'once per game' if self.num_uses != math.inf else f"once every {self.phases[0].name}",
             self.command
         )
 
@@ -61,7 +61,7 @@ class RevealAbility(Ability):
 
 class SpyAbility(Ability):
     name = 'spy'
-    action_description = 'inspect another players role'
+    action_description = 'inspect another player\'s role'
     command = 'spy <user>'
     def __call__(self, user):
         pass
@@ -143,11 +143,12 @@ class Role:
     @property
     def description(self):
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        if self.appear_as != self.name:
-            return f"a {self.name} has the ability to {', '.join([ability.description for ability in self.abilities])}. you appear as a {self.appear_as}"
-        else:
-            return f"a {self.name} has the ability to {', '.join([ability.description for ability in self.abilities])}."
-
+        return "a {} has the ability to {}. {}{}".format(
+            self.name,
+            ', and to '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
+            "be careful of disguised roles which may appear as other roles. " if 'spy' in [ability.name for ability in self.abilities] else '',
+            f'you appear as a {self.appear_as}.' if self.appear_as != self.name else ''
+        )
 # TODO: change all classes to PARTIALS
 
 
@@ -208,7 +209,7 @@ class Ronin(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        KillAbility(num_uses=1, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Samurai],
@@ -240,7 +241,7 @@ class Idol(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        RevealAbility(num_uses=math.inf, phases=[Phase.night, Phase.day]),
+        RevealAbility(num_uses=math.inf, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Sensei, Ronin],
@@ -281,7 +282,7 @@ class Esper(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        SpyAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        SpyAbility(num_uses=1, phases=[Phase.day, Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Spy, DaySpy]
@@ -378,7 +379,7 @@ class PsychicIdiot(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.night, Phase.day]),
+        SpyAbility(num_uses=math.inf, phases=[Phase.day, Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
@@ -452,7 +453,7 @@ class YandereRonin(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        KillAbility(num_uses=1, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
@@ -527,7 +528,6 @@ class Trap(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [CloakedYandere, BakaRanger]
