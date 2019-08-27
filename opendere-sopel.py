@@ -50,7 +50,7 @@ def tick(bot):
 
 @rule(f"{command_prefix}[^$]+")
 def actions(bot, trigger):
-    # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg 
+    # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     if trigger.sender in bot.memory['allowed_channels'] and trigger.sender not in bot.memory['games']:
         if trigger.match.string.lstrip(command_prefix) in ['opendere', trigger.sender.lstrip('#')]:
             bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)

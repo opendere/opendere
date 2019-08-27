@@ -86,7 +86,7 @@ class CheckAbility(Ability):
 class GuardAbility(Ability):
     name = 'guard'
     action_description = 'protect a player from any danger'
-    command = 'guard <user>' 
+    command = 'guard <user>'
     def __call__(self, game, user, target):
         pass
 
@@ -147,7 +147,6 @@ class VoteKillAbility(Ability):
             messages.append((reply_to, f"you can't vote for {target if target != game.get_user(user).nick else 'yourself. sorry :('}. {game.list_votes}"))
 
         # TODO: implement lynching :D
-        
         return messages
 
 class Role:

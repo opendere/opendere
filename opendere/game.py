@@ -40,7 +40,7 @@ class Game:
         actions (Dict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
-        self.bot = bot 
+        self.bot = bot
         self.name = name
         self.prefix = prefix
         self.allow_late = allow_late
@@ -79,7 +79,6 @@ class Game:
 
         if len(self.users) % 2:
             messages.append((self.channel, f"this game starts on the {self.phase_name.upper()} of day {self.day_num}. if you have a night role, please send {self.bot} a private message with any commands you may have, or with 'abstain' to abstain from using any abilities."))
-
         else:
             messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. discuss!"))
         messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values()])}."))
@@ -158,11 +157,11 @@ class Game:
         a list of votes and count of each
         """
         if not self.votes:
-            return str() 
-        votes = "current votes are: " 
-        # i don't really like how this looks... - libbies 
+            return str()
+        votes = "current votes are: "
+        # i don't really like how this looks... - libbies
         for vote in set([vote for vote in self.votes.values() if vote]):
-            votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, " 
+            votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, "
         votes += f"abstained: {list(self.votes.values()).count(None)}, "
         votes += f"undecided: {len(self.users) - len(self.votes)}"
         return votes
@@ -241,7 +240,7 @@ class Game:
 
         if channel:
             if action.lower() in ['opendere', self.name.lower()]:
-                return self.join_game(user, nick) 
+                return self.join_game(user, nick)
             elif action.lower() in ['end', 'reset', 'restart']:
                 return self.reset()
             elif self.phase == "setup":
