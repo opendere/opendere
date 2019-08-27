@@ -135,7 +135,7 @@ class Game:
     @property
     def day_num(self) -> int:
         """
-        the current day as a number, e.g. "it is Day 2". nights start with 0
+        the current day as a number, e.g. "it is Day 2". nights can start from 0
         """
         return (2 - (len(self.users) % 2) + self.phase) // 2
 
@@ -162,8 +162,8 @@ class Game:
             return str() 
         votes = "current votes are: " 
         # i don't really like how this looks... - libbies 
-        for vote in set([vote.nick for vote in self.votes.values() if vote]):
-            votes += f"{vote}: {[vote.nick if vote else 'abstain' for vote in self.votes.values()].count(vote)}, " 
+        for vote in set([vote for vote in self.votes.values() if vote]):
+            votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, " 
         votes += f"abstained: {list(self.votes.values()).count(None)}, "
         votes += f"undecided: {len(self.users) - len(self.votes)}"
         return votes
