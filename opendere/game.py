@@ -239,10 +239,10 @@ class Game:
             action = action.lstrip(self.prefix)
 
         if channel:
-            if action.lower() in ['opendere', self.name.lower()]:
-                return self.join_game(user, nick)
-            elif action.lower() in ['end', 'reset', 'restart']:
+            if action.lower() in ['end', 'reset', 'restart']:
                 return self.reset()
+            elif action.lower() in ['opendere', self.name.lower()]:
+                return self.join_game(user, nick)
             elif self.phase == "setup":
                 return
             elif action.lower() in ['h', 'hurry']:
