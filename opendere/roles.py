@@ -109,42 +109,42 @@ class VoteKillAbility(Ability):
     command = 'vote <user>'
     def __call__(self, game, user, target):
         tmp, messages = None, list()
-        victim = game.get_user(target)
         if user in game.votes:
             tmp = game.votes[user]
 
-        reply_to = game.channel if game.phase == 'day' else user
+        reply_to = game.channel if game.phase == 'day' else user.uid
 
-        if target.lower() in ['u', 'unvote', 'undecide', 'undecided']:
+        if target in ['u', 'unvote', 'undecide', 'undecided']:
             if user not in game.votes:
-                messsages.append((reply_to, f"{user}: you're already undecided. {game.list_votes}"))
+                messsages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
             else:
                 tmp = game.votes[user]
                 del game.votes[user]
-                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to undecided. {game.list_votes}"))
+                messages.append((reply_to, f"{user.nick} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to undecided. {game.list_votes}"))
 
-        elif target.lower() in ['a', 'abstain']:
+        elif target in ['a', 'abstain']:
             if not tmp:
                 game.votes[user] = None
-                messages.append((reply_to, f"{user} has voted to abstain. {game.list_votes}"))
-            elif tmp == victim:
-                messages.append((reply_to, f"{user}: you're already abstaining. {game.list_votes}"))
+                messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
+            elif tmp == target:
+                messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
             elif tmp:
                 game.votes[user] = None
-                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick} to abstain. {game.list_votes}"))
+                messages.append((reply_to, f"{user.nick} has changed their vote from {tmp.nick} to abstain. {game.list_votes}"))
 
-        elif victim is not None and victim != game.get_user(user):
+        elif target is not None and user != target:
             if not tmp:
-                game.votes[user] = victim
-                messages.append((reply_to, f"{user} has voted for {victim.nick}. {game.list_votes}"))
-            elif tmp == victim:
-                messages.append((reply_to, f"{user}: you're already voting for {victim.nick}. {game.list_votes}"))
+                game.votes[user] = target
+                messages.append((reply_to, f"{user.nick} has voted for {target.nick}. {game.list_votes}"))
+            elif tmp == target:
+                messages.append((reply_to, f"{user.nick}: you're already voting for {target.nick}. {game.list_votes}"))
             elif tmp:
-                game.votes[user] = victim
-                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to {victim.nick}. {game.list_votes}"))
+                game.votes[user] = target
+                messages.append((reply_to, f"{user.nick} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to {target.nick}. {game.list_votes}"))
 
         else:
-            messages.append((reply_to, f"you can't vote for {target if target != game.get_user(user).nick else 'yourself. sorry :('}. {game.list_votes}"))
+            # should only ever get here if one votes for themselves
+            messages.append((reply_to, f"you can't vote for {target if user != target else 'yourself. sorry :('}. {game.list_votes}"))
 
         # TODO: implement lynching :D
         return messages
