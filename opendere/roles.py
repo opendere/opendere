@@ -61,7 +61,7 @@ class RevealAbility(Ability):
 
 class SpyAbility(Ability):
     name = 'spy'
-    action_description = 'inspect another player\'s role'
+    action_description = 'inspect another player\'s role (be careful of disguised roles which may appear as other roles!)'
     command = 'spy <user>'
     def __call__(self, game, user, target):
         pass
@@ -181,10 +181,9 @@ class Role:
     @property
     def description(self):
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        return "a {} can {}. {}{}".format(
+        return "a {} can {}. {}".format(
             self.name,
             ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
-            "be careful of disguised roles which may appear as other roles. " if 'spy' in [ability.name for ability in self.abilities] else '',
             f'you appear as a {self.appear_as}.' if self.appear_as != self.name else ''
         )
 # TODO: change all classes to PARTIALS

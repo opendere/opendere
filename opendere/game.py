@@ -157,12 +157,20 @@ class Game:
         a list of votes and count of each
         """
         votes = "current votes are: "
-        # i don't really like how this looks... - libbies
         for vote in set([vote for vote in self.votes.values() if vote]):
             votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, "
         votes += f"abstained: {list(self.votes.values()).count(None)}, "
         votes += f"undecided: {self.players_alive - len(self.votes)}"
         return votes
+
+    def _nick_change(self, uid, new_uid, nick, new_nick):
+        """
+        handle nickname changes
+        discord user.id will always stay the same, but nick or name can change so we should track those
+        irc hostmask nick!user@host can change, so we should split into a three tuple, and match on any two
+        """
+        # TODO: handle nickname changes. i still don't know what do about untypeable nicks on discord though
+        pass
 
     def _phase_change(self):
         """

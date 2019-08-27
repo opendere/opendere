@@ -5,8 +5,8 @@
 from sopel import tools
 from sopel.module import commands, interval, rule, example
 
-import sys
-sys.path.append('/home/libbies/.sopel/modules')
+import os, sys
+sys.path.append(os.getcwd())
 
 import opendere.game
 import opendere.roles
