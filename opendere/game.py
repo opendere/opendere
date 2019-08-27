@@ -253,7 +253,7 @@ class Game:
             elif action.lower() in ['a', 'abstain']:
                 return self.user_action(uid, f"{self.prefix}vote abstain", channel)
 
-        if self.phase == "setup":
+        if self.phase_name == "setup":
             return
 
         action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
