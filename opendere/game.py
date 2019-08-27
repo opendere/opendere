@@ -258,7 +258,10 @@ class Game:
             elif ability.command_public and not channel:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
             else:
-                target = self.get_user(action[1])
+                if action[1] in ['a', 'u', 'abstain', 'undecided']:
+                    target = action[1] 
+                else:
+                    target = self.get_user(action[1])
                 if target is None:
                     return [(uid, f"invalid target '{action[1]}' for command {action[0]}. please try again.")]
                 return ability(self, self.get_user(uid), target)

@@ -66,7 +66,7 @@ def join_game(bot, trigger):
     join an existing (or start a new) opendere instance
     """
     if trigger.sender not in bot.memory['opendere_channels']:
-        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['opendere_channels'])}") 
+        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['opendere_channels'])}")
         return
 
     # if no game exists, we need to start one
