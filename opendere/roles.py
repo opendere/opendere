@@ -116,7 +116,7 @@ class VoteKillAbility(Ability):
 
         if target in ['u', 'unvote', 'undecide', 'undecided']:
             if user not in game.votes:
-                messsages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
+                messages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
             else:
                 prev = game.votes[user]
                 del game.votes[user]
@@ -144,7 +144,7 @@ class VoteKillAbility(Ability):
 
         else:
             # should only ever get here if one votes for themselves
-            messages.append((reply_to, f"you can't vote for {target if user != target else 'yourself. sorry :('}. {game.list_votes}"))
+            messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
 
         # TODO: implement lynching :D
         return messages

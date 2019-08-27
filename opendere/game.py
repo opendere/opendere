@@ -184,7 +184,7 @@ class Game:
         """
         if nick in self.users and self.users[nick].is_alive:
             return self.users[nick]
-        return next((user for user in self.users.values() if nick.lower() == user.nick.lower()), None)
+        return next((user for user in self.users.values() if nick.lower() == user.nick.lower() and user.is_alive), None)
 
     def join_game(self, uid, nick):
         """
@@ -235,34 +235,18 @@ class Game:
                 # TODO: self._phase_change()
                 pass
 
-    def user_action(self, uid, action, channel=None, nick=None):
+    def user_action(self, uid, action, channel=None):
         """
         determines whether a user has the ability to take an action, then executes the action
         """
         if channel and not action.startswith(self.prefix):
             return
-        elif action.startswith(self.prefix):
-            action = action.lstrip(self.prefix)
-
-        if channel:
-            if action.lower() in ['end', 'reset', 'restart']:
-                return self.reset()
-            elif action.lower() in ['opendere', self.name.lower()]:
-                return self.join_game(uid, nick)
-            elif self.phase == "setup":
-                return
-            elif action.lower() in ['h', 'hurry']:
-                return self.user_hurry(uid)
-            elif self.phase_name == "night":
-                return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
-            # aliases that are user actions should probably be moved to the ability instead...
-            elif action.lower() in ['u', 'unvote']:
-                return self.user_action(uid, f"{self.prefix}vote undecided", channel)
-            elif action.lower() in ['a', 'abstain']:
-                return self.user_action(uid, f"{self.prefix}vote abstain", channel)
+        action = action.lstrip(self.prefix)
 
         if self.phase_name == "setup":
             return
+        elif channel and self.phase_name == "night":
+            return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
 
         action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
         for ability in self.users[uid].role.abilities:
@@ -274,19 +258,13 @@ class Game:
             elif ability.command_public and not channel:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
             else:
-                if action[1] in ['a', 'u', 'abstain', 'undecided']:
-                    target = action[1]
-                else:
-                    target = self.get_user(action[1])
+                target = self.get_user(action[1])
                 if target is None:
                     return [(uid, f"invalid target '{action[1]}' for command {action[0]}. please try again.")]
                 return ability(self, self.get_user(uid), target)
 
     def reset(self):
-        messages = list()
-        messages.append((self.channel, f"the current game of opendere in {self.channel} has ended or been reset."))
         self.__init__(channel=None, bot=None, name=None)
-        return messages
 
     def user_hurry(self, uid):
         """
