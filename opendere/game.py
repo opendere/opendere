@@ -92,7 +92,6 @@ class Game:
         """
         Select N roles for the players of the game
         """
-        # why aren't these weights in roles.py instead? - libbies
         weighted_good_role_classes = {
             roles.Hikikomori: 2, roles.Tokokyohi: 4,
             roles.Shogun: 2, roles.Warrior: 4,
@@ -165,8 +164,7 @@ class Game:
         # i don't really like how this looks... - libbies 
         for vote in set([vote.nick for vote in self.votes.values() if vote]):
             votes += f"{vote}: {[vote.nick if vote else 'abstain' for vote in self.votes.values()].count(vote)}, " 
-        for vote in [None for vote in self.votes.values() if vote is None]:
-            votes += f"abstain: {[vote.nick if vote else 'abstain' for vote in self.votes.values()].count(vote)}, " 
+        votes += f"abstained: {list(self.votes.values()).count(None)}, "
         votes += f"undecided: {len(self.users) - len(self.votes)}"
         return votes
 
@@ -182,10 +180,7 @@ class Game:
         """
         if nick in self.users:
             return self.users[nick]
-        for user in self.users.values():
-            if nick.lower() == user.nick.lower():
-                return user 
-        return None
+        return next((user for user in self.users.values() if nick.lower() == user.nick.lower()), None)
 
     def join_game(self, user, nick):
         """
@@ -256,9 +251,9 @@ class Game:
                 return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
             # aliases that are user actions should probably be moved to the ability instead...
             elif action.lower() in ['u', 'unvote']:
-                return self.user_action(user, 'vote undecided', channel)
+                return self.user_action(user, f"{self.prefix}vote undecided", channel)
             elif action.lower() in ['a', 'abstain']:
-                return self.user_action(user, 'vote abstain', channel)
+                return self.user_action(user, f"{self.prefix}vote abstain", channel)
 
         action = action.lstrip(self.name).split(maxsplit=1)
         for ability in self.users[user].role.abilities:

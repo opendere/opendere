@@ -50,9 +50,8 @@ def tick(bot):
 
 @rule(f"{command_prefix}[^$]+")
 def actions(bot, trigger):
-    # 
     if trigger.sender in bot.memory['allowed_channels'] and trigger.sender not in bot.memory['games']:
-        if trigger.match.string.split()[0][len(command_prefix):] in [channel.lstrip('#') for channel in allowed_channels]:
+        if trigger.match.string.lstrip(command_prefix) in [channel.lstrip('#') for channel in allowed_channels]:
             bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
         else:
             return
@@ -64,9 +63,8 @@ def actions(bot, trigger):
     # an action that occurs in a privmsg or notice[?], e.g. 'kill' or 'check'
     # TODO: test this, lol.
     # TODO: this probably breaks down if a user is somehow in multiple games, so we need to prevent that later...
-    elif trigger.sender in [user.nick for game in bot.memory['games'].values() for user in game.users.values()]:
-        # maybe a game.get_game_by_uid() instead of the below list comprehension...
-        game = [game.channel for game in bot.memory['games'].values() for user in game.users if user == trigger.hostmask][0]
+    elif trigger.hostmask in [user.uid for game in bot.memory['games'].values() for user in game.users.values()]:
+        game = next((game.channel for game in bot.memory['games'].values() for user in game.users.values() if user.uid == trigger.hostmask), None)
         if not game:
             return
         messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string)

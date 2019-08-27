@@ -144,7 +144,7 @@ class VoteKillAbility(Ability):
                 messages.append((reply_to, f"{user} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to {victim.nick}. {game.list_votes}"))
 
         else:
-            messages.append((reply_to, f"you can't vote for {target if target != game.get_user(user).nick else 'yourself'}. {game.list_votes}"))
+            messages.append((reply_to, f"you can't vote for {target if target != game.get_user(user).nick else 'yourself. sorry :('}. {game.list_votes}"))
 
         # TODO: implement lynching :D
         
