@@ -106,8 +106,7 @@ def unvote(bot, trigger):
             bot.notice(text, recipient.split('!')[0])
 
 @rule(f"^{command_prefix}[^$]+")
-@rule(f"^{command_prefix}[^$]+")
-@example('!vote <target> - perform an action against a target')
+@example("!vote <target> - use an ability against a target (e.g. 'vote kitties' or 'kill kitties')")
 def actions(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     messages = list()
