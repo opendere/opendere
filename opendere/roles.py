@@ -39,7 +39,7 @@ class UpgradeAbility(Ability):
     name = 'upgrade'
     action_description = 'upgrade any other player'
     command = 'upgrade <user>'
-    def __call__(self):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -47,7 +47,7 @@ class HideAbility(Ability):
     name = 'hide'
     action_description = 'hide from killers'
     command = 'hide'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -55,7 +55,7 @@ class RevealAbility(Ability):
     name = 'reveal'
     action_description = 'reveal to all other players'
     command = 'reveal'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -63,7 +63,7 @@ class SpyAbility(Ability):
     name = 'spy'
     action_description = 'inspect another player\'s role'
     command = 'spy <user>'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -71,7 +71,7 @@ class StalkAbility(Ability):
     name = 'stalk'
     action_description = 'learn where another player goes'
     command = 'stalk <user>'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -79,7 +79,7 @@ class CheckAbility(Ability):
     name = 'check'
     action_description = 'inspect another player\'s alignment'
     command = 'check <user>'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -87,14 +87,14 @@ class GuardAbility(Ability):
     name = 'guard'
     action_description = 'protect a player from any danger'
     command = 'guard <user>' 
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 class KillAbility(Ability):
     name = 'kill'
     action_description = 'single-handedly kill a player of their choosing'
     command = 'kill <user>'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -104,12 +104,51 @@ class VoteKillAbility(Ability):
     your cohort consists of your unique (command_public, phase) combination,
     that means public-command day voters vote together (typical lynching)
     """
-    name = 'vote to kill'
+    name = 'vote'
     action_description = 'vote with others to kill'
     command = 'vote <user>'
-    def __call__(self, user):
-        pass
+    def __call__(self, game, user, target):
+        tmp, messages = None, list()
+        victim = game.get_user(target)
+        if user in game.votes:
+            tmp = game.votes[user]
 
+        reply_to = game.channel if game.phase == 'day' else user
+
+        if target.lower() in ['u', 'unvote', 'undecide', 'undecided']:
+            if user not in game.votes:
+                messsages.append((reply_to, f"{user}: you're already undecided. {game.list_votes}"))
+            else:
+                tmp = game.votes[user]
+                del game.votes[user]
+                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to undecided. {game.list_votes}"))
+
+        elif target.lower() in ['a', 'abstain']:
+            if not tmp:
+                game.votes[user] = None
+                messages.append((reply_to, f"{user} has voted to abstain. {game.list_votes}"))
+            elif tmp == victim:
+                messages.append((reply_to, f"{user}: you're already abstaining. {game.list_votes}"))
+            elif tmp:
+                game.votes[user] = None
+                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick} to abstain. {game.list_votes}"))
+
+        elif victim is not None and victim != game.get_user(user):
+            if not tmp:
+                game.votes[user] = victim
+                messages.append((reply_to, f"{user} has voted for {victim.nick}. {game.list_votes}"))
+            elif tmp == victim:
+                messages.append((reply_to, f"{user}: you're already voting for {victim.nick}. {game.list_votes}"))
+            elif tmp:
+                game.votes[user] = victim
+                messages.append((reply_to, f"{user} has changed their vote from {tmp.nick if tmp is not None else 'abstain'} to {victim.nick}. {game.list_votes}"))
+
+        else:
+            messages.append((reply_to, f"you can't vote for {target if target != game.get_user(user).nick else 'yourself'}. {game.list_votes}"))
+
+        # TODO: implement lynching :D
+        
+        return messages
 
 class Role:
     """
@@ -145,7 +184,7 @@ class Role:
         # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
         return "a {} can {}. {}{}".format(
             self.name,
-            ', and to '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
+            ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
             "be careful of disguised roles which may appear as other roles. " if 'spy' in [ability.name for ability in self.abilities] else '',
             f'you appear as a {self.appear_as}.' if self.appear_as != self.name else ''
         )

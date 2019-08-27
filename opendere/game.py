@@ -25,11 +25,11 @@ class User:
         self.is_alive = True
 
 class Game:
-    def __init__(self, channel, bot_name, name=None, prefix='!', allow_late=False):
+    def __init__(self, channel, bot, name, prefix='!', allow_late=False):
         """
         channel (str): the channel in which the game commands are to be sent
-        bot_name (str): the name of the bot running the game; players are directed to PM the bot by name
-        name (str): the name of the current game, probably will want to move this elsewhere for themes
+        bot (str): the name of the bot running the game
+        name (str): the name of the current game, may want to move this elsewhere for themes
         prefix (str): the prefix used for game commands
         allow_late (bool): whether a player can join the game during the first phase
         users (Dict[str, User]): players who've joined the game
@@ -40,22 +40,17 @@ class Game:
         actions (Dict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
-        self.bot_name = bot_name 
-        self.name = name or channel.lstrip('#')
+        self.bot = bot 
+        self.name = name
         self.prefix = prefix
         self.allow_late = allow_late
         self.users = {}
         self.ticks = None
         self.phase = None
         self.hurry_requested_users = []
-        # list of votes is `[self.votes[voter] for voter in self.votes]`
-        # maybe should be moved to User for `[self.users[user].vote for user in self.users]` instead
-        # not sure which is going to be better. the same goes for actions too.
+        # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
         self.votes = {}
         self.actions = {}
-
-    def reset(self):
-        self.__init__()
 
     def _start_game(self):
         """
@@ -65,7 +60,7 @@ class Game:
         self.phase, self.ticks = 0, None
         if len(self.users) <= 3:
             messages.append((self.channel, f"there aren't enough players to start a {self.name} game. try again later."))
-            self.reset()
+            self.__init__(channel=None, bot=None, name=None)
             return messages
 
         roles = self._select_roles(len(self.users))
@@ -84,11 +79,11 @@ class Game:
         )))
 
         if len(self.users) % 2:
-            messages.append((self.channel, f"this game starts on the {self.phase_name.upper()} of day {self.day_num}. if you have a night role, please send {self.bot_name} a private message with any commands you may have, or with 'abstain' to abstain from using any abilities."))
+            messages.append((self.channel, f"this game starts on the {self.phase_name.upper()} of day {self.day_num}. if you have a night role, please send {self.bot} a private message with any commands you may have, or with 'abstain' to abstain from using any abilities."))
 
         else:
             messages.append((self.channel, f"this game starts on {self.phase_name.upper()} {self.day_num}. discuss!"))
-        messages.append((self.channel, f"current players: {', '.join([self.users[user].nick for user in self.users])}."))
+        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values()])}."))
 
         return messages
 
@@ -99,16 +94,16 @@ class Game:
         """
         # why aren't these weights in roles.py instead? - libbies
         weighted_good_role_classes = {
-            roles.Hikikomori: 1, roles.Tokokyohi: 2,
-            roles.Shogun: 1, roles.Warrior: 2,
-            roles.Samurai: 1, roles.Ronin: 2,
-            roles.Shisho: 1, roles.Sensei: 2,
-            roles.Idol: 1, roles.Janitor: 2,
-            roles.Spy: 1, roles.DaySpy: 1, roles.Esper: 2,
-            roles.Stalker: 1, roles.Witness: 2,
-            roles.Detective: 1, roles.Snoop: 2,
-            roles.Guardian: 1, roles.Nurse: 2,
-            roles.Civilian: 3, roles.Tsundere: 3
+            roles.Hikikomori: 2, roles.Tokokyohi: 4,
+            roles.Shogun: 2, roles.Warrior: 4,
+            roles.Samurai: 2, roles.Ronin: 4,
+            roles.Shisho: 2, roles.Sensei: 4,
+            roles.Idol: 2, roles.Janitor: 4,
+            roles.Spy: 1, roles.DaySpy: 1, roles.Esper: 4,
+            roles.Stalker: 2, roles.Witness: 4,
+            roles.Detective: 2, roles.Snoop: 4,
+            roles.Guardian: 2, roles.Nurse: 4,
+            roles.Civilian: 6, roles.Tsundere: 6
         }
         weighted_neutral_role_classes = {r: 1 for r in roles.all_role_classes if r.default_alignment == roles.Alignment.neutral}
         weighted_good_and_neutral_role_classes = {
@@ -134,7 +129,7 @@ class Game:
     @property
     def phase_name(self) -> str:
         """
-        the day/night phase as a string
+        the name of the current phase...
         """
         return "night" if (self.phase + len(self.users)) % 2 else "day"
 
@@ -146,17 +141,51 @@ class Game:
         return (2 - (len(self.users) % 2) + self.phase) // 2
 
     @property
+    def players_alive(self) -> int:
+        """
+        number of yanderes still alive
+        """
+        return len([user for user in self.users.values() if user.is_alive])
+
+    @property
     def yanderes_alive(self) -> int:
         """
         number of yanderes still alive
         """
-        return len([user for user in self.users if self.users[user].is_alive and self.users[user].role.is_yandere])
+        return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere])
+
+    @property
+    def list_votes(self):
+        """
+        a list of votes and count of each
+        """
+        if not self.votes:
+            return str() 
+        votes = "current votes are: " 
+        # i don't really like how this looks... - libbies 
+        for vote in set([vote.nick for vote in self.votes.values() if vote]):
+            votes += f"{vote}: {[vote.nick if vote else 'abstain' for vote in self.votes.values()].count(vote)}, " 
+        for vote in [None for vote in self.votes.values() if vote is None]:
+            votes += f"abstain: {[vote.nick if vote else 'abstain' for vote in self.votes.values()].count(vote)}, " 
+        votes += f"undecided: {len(self.users) - len(self.votes)}"
+        return votes
 
     def _phase_change(self):
         """
         handle events that happen during a phase change
         """
         pass
+
+    def get_user(self, nick):
+        """
+        return the User object by uid or nick if found
+        """
+        if nick in self.users:
+            return self.users[nick]
+        for user in self.users.values():
+            if nick.lower() == user.nick.lower():
+                return user 
+        return None
 
     def join_game(self, user, nick):
         """
@@ -207,11 +236,47 @@ class Game:
                 # TODO: self._phase_change()
                 pass
 
-    def user_action(self, user, action):
+    def user_action(self, user, action, channel=None, nick=None):
         """
         determines whether a user has the ability to take an action, then executes the action
         """
-        pass
+        if channel and not action.startswith(self.prefix):
+            return
+        elif action.startswith(self.prefix):
+            action = action.lstrip(self.prefix)
+
+        if channel:
+            if action.lower() == self.name.lower():
+                return self.join_game(user, nick) 
+            elif action.lower() in ['end', 'reset', 'restart']:
+                return self.reset()
+            elif action.lower() in ['h', 'hurry']:
+                return self.user_hurry(user)
+            elif self.phase_name == "night":
+                return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
+            # aliases that are user actions should probably be moved to the ability instead...
+            elif action.lower() in ['u', 'unvote']:
+                return self.user_action(user, 'vote undecided', channel)
+            elif action.lower() in ['a', 'abstain']:
+                return self.user_action(user, 'vote abstain', channel)
+
+        action = action.lstrip(self.name).split(maxsplit=1)
+        for ability in self.users[user].role.abilities:
+            # maybe change ability.name to a list, so we can use that as a list of command aliases?
+            if action[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
+                continue
+            elif channel and not ability.command_public:
+                return [(user, f"please PM/notice {self.bot} with your commands instead.")]
+            elif ability.command_public and not channel:
+                return [(user, f"please enter that command in {self.channel} instead.")]
+            else:
+                return ability(self, user, action[1])
+
+    def reset(self):
+        messages = list()
+        messages.append((self.channel, f"the current game of {self.name} has ended or been reset."))
+        self.__init__(channel=None, bot=None, name=None)
+        return messages
 
     def user_hurry(self, user):
         """
