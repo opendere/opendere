@@ -59,7 +59,7 @@ class Game:
         messages = list()
         self.phase, self.ticks = 0, None
         if len(self.users) <= 3:
-            messages.append((self.channel, f"there aren't enough players to start a {self.name} game. try again later."))
+            messages.append((self.channel, f"there aren't enough players to start a game of opendere in {self.channel}. please try again later."))
             self.__init__(channel=None, bot=None, name=None)
             return messages
 
@@ -69,8 +69,7 @@ class Game:
             self.users[user].role = roles[i]
             messages.append((user, f"you're a {self.users[user].role.name}. {self.users[user].role.description}"))
 
-        messages.append((self.channel, "welcome to {}. There {} {} {}. it's your job to determine who the {} {}.".format(
-                    self.name,
+        messages.append((self.channel, "welcome to opendere. There {} {} {}. it's your job to determine who the {} {}.".format(
                     'is' if self.yanderes_alive == 1 else 'are',
                     self.yanderes_alive,
                     'yandere' if self.yanderes_alive == 1 else 'yanderes',
@@ -130,7 +129,7 @@ class Game:
         """
         the name of the current phase...
         """
-        return "night" if (self.phase + len(self.users)) % 2 else "day"
+        return "setup" if not self.phase else ("night" if (self.phase + len(self.users)) % 2 else "day")
 
     @property
     def day_num(self) -> int:
@@ -191,7 +190,7 @@ class Game:
 
         if not self.users:
             self.ticks = 60
-            messages.append((self.channel, f"a {self.name} game is starting in {self.ticks} seconds! please type {self.prefix}{self.name} to join!"))
+            messages.append((self.channel, f"an opendere game is starting in {self.channel} in {self.ticks} seconds! please type !opendere to join!"))
 
         if user in self.users:
             if self.phase is None:
@@ -241,10 +240,12 @@ class Game:
             action = action.lstrip(self.prefix)
 
         if channel:
-            if action.lower() == self.name.lower():
+            if action.lower() in ['opendere', self.name.lower()]:
                 return self.join_game(user, nick) 
             elif action.lower() in ['end', 'reset', 'restart']:
                 return self.reset()
+            elif self.phase == "setup":
+                return
             elif action.lower() in ['h', 'hurry']:
                 return self.user_hurry(user)
             elif self.phase_name == "night":
@@ -255,7 +256,10 @@ class Game:
             elif action.lower() in ['a', 'abstain']:
                 return self.user_action(user, f"{self.prefix}vote abstain", channel)
 
-        action = action.lstrip(self.name).split(maxsplit=1)
+        if self.phase == "setup":
+            return
+
+        action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
         for ability in self.users[user].role.abilities:
             # maybe change ability.name to a list, so we can use that as a list of command aliases?
             if action[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
@@ -269,7 +273,7 @@ class Game:
 
     def reset(self):
         messages = list()
-        messages.append((self.channel, f"the current game of {self.name} has ended or been reset."))
+        messages.append((self.channel, f"the current game of opendere in {self.channel} has ended or been reset."))
         self.__init__(channel=None, bot=None, name=None)
         return messages
 

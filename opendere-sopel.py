@@ -52,9 +52,10 @@ def tick(bot):
 def actions(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg 
     if trigger.sender in bot.memory['allowed_channels'] and trigger.sender not in bot.memory['games']:
-        if trigger.match.string.lstrip(command_prefix) in [channel.lstrip('#') for channel in allowed_channels]:
+        if trigger.match.string.lstrip(command_prefix) in ['opendere', trigger.sender.lstrip('#')]:
             bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
         else:
+            # bot.say(trigger.sender, f"you can only start a game from {' or '.join(bot.memory['allowed_channels'])}")
             return
 
     # an action that occurs in a channel, e.g. 'vote' or 'hurry'
