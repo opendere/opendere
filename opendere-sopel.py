@@ -45,7 +45,7 @@ def tick(bot):
                 bot.notice(text, recipient)
 
         # if the game has ended or been reset
-        if bot.memory['games'][channel].channel == None:
+        if bot.memory['games'][channel].channel is None:
             del bot.memory['games'][channel]
 
 @rule(f"{command_prefix}[^$]+")
@@ -64,8 +64,9 @@ def actions(bot, trigger):
     # an action that occurs in a privmsg or notice[?], e.g. 'kill' or 'check'
     # TODO: test this, lol.
     # TODO: this probably breaks down if a user is somehow in multiple games, so we need to prevent that later...
-    elif trigger.sender in [bot.memory['games'][game].users[user].nick for game in bot.memory['games'] for user in bot.memory['games'][game].users]:
-        game = [bot.memory['games'][game].channel for game in bot.memory['games'] for user in bot.memory['games'][game].users][0]
+    elif trigger.sender in [user.nick for game in bot.memory['games'].values() for user in game.users.values()]:
+        # maybe a game.get_game_by_uid() instead of the below list comprehension...
+        game = [game.channel for game in bot.memory['games'].values() for user in game.users if user == trigger.hostmask][0]
         if not game:
             return
         messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string)
@@ -83,5 +84,5 @@ def actions(bot, trigger):
             bot.notice(text, recipient)
 
     # if the game has ended or been reset
-    if bot.memory['games'][trigger.sender].channel == None:
+    if bot.memory['games'][trigger.sender].channel is None:
         del bot.memory['games'][trigger.sender]
