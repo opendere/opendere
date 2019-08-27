@@ -156,7 +156,6 @@ class Game:
         """
         a list of votes and count of each
         """
-        print(self.votes)
         votes = "current votes are: "
         # i don't really like how this looks... - libbies
         for vote in set([vote for vote in self.votes.values() if vote]):
