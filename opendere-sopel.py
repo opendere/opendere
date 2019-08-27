@@ -30,11 +30,11 @@ def tick(bot):
     """
     for channel in bot.channels:
         if channel not in bot.memory['games']:
-            return
+            continue
 
         messages = bot.memory['games'][channel].tick()
         if not messages:
-            return
+            continue
 
         for msg in messages:
             recipient, text = msg
@@ -50,6 +50,8 @@ def tick(bot):
 
 @rule(f"{command_prefix}[^$]+")
 def actions(bot, trigger):
+    messages = list()
+
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     if trigger.sender in bot.memory['allowed_channels'] and trigger.sender not in bot.memory['games']:
         if trigger.match.string.lstrip(command_prefix) in ['opendere', trigger.sender.lstrip('#')]:
@@ -70,8 +72,7 @@ def actions(bot, trigger):
             return
         messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string)
 
-    # otherwise ignore the message because it's not in a game channel or it's not sent by a player in an active game
-    else:
+    if not messages:
         return
 
     for msg in messages:
