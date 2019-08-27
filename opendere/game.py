@@ -1,5 +1,5 @@
 from numpy import random
-
+from collections import OrderedDict
 from opendere import roles
 
 def weighted_choices(choice_weight_map, num_choices):
@@ -36,8 +36,8 @@ class Game:
         ticks (int): seconds until the end of the current phase
         phase (int): current phase (1 day and 1 night is 2 phases)
         hurry_requested_users (List[str]): users who've requested the phase be hurried
-        votes (Dict[User, User]): users and who've they've voted to kill
-        actions (Dict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
+        votes (OrderedDict[User, User]): users and who've they've voted to kill
+        actions (OrderedDict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot = bot
@@ -49,8 +49,8 @@ class Game:
         self.phase = None
         self.hurry_requested_users = []
         # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
-        self.votes = {}
-        self.actions = {}
+        self.votes = OrderedDict() 
+        self.actions = OrderedDict() 
 
     def _start_game(self):
         """
@@ -221,7 +221,7 @@ class Game:
         return messages
 
     def tick(self):
-        if self.ticks == None:
+        if self.ticks is None:
             return
 
         if self.ticks:
@@ -232,8 +232,7 @@ class Game:
             if self.phase == None:
                 return self._start_game()
             else:
-                # TODO: self._phase_change()
-                pass
+                return self._phase_change()
 
     def user_action(self, uid, action, channel=None):
         """
