@@ -122,7 +122,7 @@ class VoteKillAbility(Ability):
             if user not in game.votes:
                 game.votes[user] = None
                 messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
-            elif game.votes[user] is None: 
+            elif game.votes[user] is None:
                 messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
             elif game.votes[user] is not None:
                 prev, game.votes[user] = game.votes.pop(user), None
@@ -142,7 +142,13 @@ class VoteKillAbility(Ability):
             # should only ever get here if one votes for themselves
             messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
 
-        # TODO: implement lynching :D
+        # if everyone has voted, we can change the phase after this
+        if game.phase_name == 'day' and len(game.votes) == game.players_alive:
+            game.ticks = 1
+        # this assumes that yanderes that don't have the vote ability (i.e. traps) don't get to vote
+        elif game.phase_name == 'night' and len(game.votes) == games.yandere_killers:
+            game.ticks = 1
+
         return messages
 
 class Role:
@@ -180,7 +186,7 @@ class Role:
         return "a {} can {}. {}".format(
             self.name,
             ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
-            f'you appear as a {self.appear_as}.' if self.appear_as != self.name else ''
+            f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
 # TODO: change all classes to PARTIALS
 

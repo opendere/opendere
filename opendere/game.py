@@ -1,5 +1,5 @@
 from numpy import random
-from collections import OrderedDict
+
 from opendere import roles
 
 def weighted_choices(choice_weight_map, num_choices):
@@ -15,14 +15,15 @@ class User:
         nick (str): the player's nickname
         role (Role): the player's role
         alignment (Alignment): the player's alignment, potentially changed from the default
-        alive (bool): whether a player is dead or alive
-        vote (str): whom if anyone the player has voted for
+        is_alive (bool): whether a player is dead or alive
+        is_hidden (bool): whether a player is hiding from the mean and scary yanderes ;_;
         """
         self.uid = uid
         self.nick = nick
         self.role = None
         self.alignment = None
         self.is_alive = True
+        self.is_hidden = False
 
 class Game:
     def __init__(self, channel, bot, name, prefix='!', allow_late=False):
@@ -35,9 +36,9 @@ class Game:
         users (Dict[str, User]): players who've joined the game
         ticks (int): seconds until the end of the current phase
         phase (int): current phase (1 day and 1 night is 2 phases)
-        hurry_requested_users (List[str]): users who've requested the phase be hurried
-        votes (OrderedDict[User, User]): users and who've they've voted to kill
-        actions (OrderedDict[User, Ability]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
+        hurries (List[User]): users who've requested the phase be hurried
+        votes (Dict[User, User]): users and who've they've voted to kill
+        actions (Dict[User, (Ability, User)]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot = bot
@@ -47,10 +48,10 @@ class Game:
         self.users = {}
         self.ticks = None
         self.phase = None
-        self.hurry_requested_users = []
+        self.hurries = []
         # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
-        self.votes = OrderedDict() 
-        self.actions = OrderedDict() 
+        self.votes = {}
+        self.actions = {}
 
     def _start_game(self):
         """
@@ -152,6 +153,13 @@ class Game:
         return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere])
 
     @property
+    def yandere_killers(self) -> int:
+        """
+        number of yanderes who can kill, i.e. not traps
+        """
+        return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere for ability in user.role.abilities if ability.name == 'vote' for phase in ability.phases if phase.name == 'night'])
+
+    @property
     def list_votes(self):
         """
         a list of votes and count of each
@@ -160,7 +168,7 @@ class Game:
         for vote in set([vote for vote in self.votes.values() if vote]):
             votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, "
         votes += f"abstained: {list(self.votes.values()).count(None)}, "
-        votes += f"undecided: {self.players_alive - len(self.votes)}"
+        votes += f"undecided: {(self.players_alive if self.phase_name == 'day' else self.yandere_killers) - len(self.votes)}"
         return votes
 
     def _nick_change(self, uid, new_uid, nick, new_nick):
@@ -176,7 +184,42 @@ class Game:
         """
         handle events that happen during a phase change
         """
-        pass
+        messages = list()
+
+        target = self.tally_votes()
+        if self.phase_name == 'day':
+            if target is None:
+                messages.append((self.channel, f"you abstain from killing anyone."))
+            elif self.phase_name == 'day' and target is not None:
+                target.is_alive = False
+                messages.append((self.channel, f"you lynch {target.nick} and it turns out they were{'' if target.role.is_yandere else ' NOT'} a yandere!"))
+            messages.append((self.channel, f"dusk sets on the NIGHT of day {self.day_num}. there are {self.yanderes_alive} {'yandere' if self.yanderes_alive == 1 else 'yanderes'} still at large."))
+            messages.append((self.channel, f"please PM/notice {self.bot} with any night-time commands you may have, or with 'abstain' to abstain."))
+            self.phase += 1
+        elif self.phase_name == 'night':
+            # TODO: night-time hiding and guarding goes here
+            # TODO: night-time killings go here
+            if target is not None and not target.is_hidden:
+                target.is_alive = False
+                # needs like a random.choice(list_of_death_reasons)
+                messages.append((self.channel, f"{target.nick} was found brutually murdered D:"))
+            # TODO: spying/checking/witnessing goes here
+            # TODO: reset hiding/guarding
+            if not messages:
+                messages.append((self.channel, f"the dawn comes and it seems everyone survived the night."))
+            else:
+                random.shuffle(messages)
+                messages.insert(0, (self.channel, f"morning comes with the stench of death D:"))
+            self.phase += 1
+            messages.append((self.channel, f"dawn rises on DAY {self.day_num}. there are {self.yanderes_alive} {'yandere' if self.yanderes_alive == 1 else 'yanderes'} still at large. it is a brand new day :D"))
+
+        # reset everything else for the next phase
+        self.ticks = None
+        self.hurries = list()
+        self.votes = dict()
+        self.actions = dict()
+
+        return messages
 
     def get_user(self, nick):
         """
@@ -228,8 +271,7 @@ class Game:
             self.ticks -= 1
 
         if self.ticks == 0:
-            self.ticks = None
-            if self.phase == None:
+            if self.phase_name == "setup":
                 return self._start_game()
             else:
                 return self._phase_change()
@@ -258,7 +300,7 @@ class Game:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
             else:
                 if action[1] in ['a', 'u', 'abstain', 'undecided']:
-                    target = action[1] 
+                    target = action[1]
                 else:
                     target = self.get_user(action[1])
                 if target is None:
@@ -284,3 +326,25 @@ class Game:
         else:
             messages.append((uid, f"you can't hurry the game right now."))
         return messages
+
+    def tally_votes(self):
+        counts = sorted({vote: list(self.votes.values()).count(vote) for vote in set(self.votes.values())}.items(), key=lambda x: x[1], reverse=True)
+        # no one voted
+        if not counts:
+            target = None
+        # only one person was voted for
+        elif len(counts) == 1:
+            target = counts[0][0]
+        # one person has the most votes
+        elif counts[0][1] > counts[1][1]:
+            target = counts[0][0]
+        # otherwise, at night, the first yandere to vote for someone (i.e. not abstain) wins
+        elif self.phase_name == 'night':
+            for target in iter(self.votes.values()):
+                if target is not None:
+                    return target
+            return None
+        # otherwise, everyone survives
+        else:
+            target = None
+        return target
