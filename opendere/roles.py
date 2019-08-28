@@ -109,6 +109,7 @@ class VoteKillAbility(Ability):
     command = 'vote <user>'
     def __call__(self, game, user, target):
         messages = list()
+        # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
         reply_to = game.channel if game.phase == 'day' else user.uid
 
         if target in ['u', 'unvote', 'undecide', 'undecided']:
@@ -143,8 +144,10 @@ class VoteKillAbility(Ability):
             messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
 
         # if everyone has voted, we can change the phase after this
+        # these numbers can be increased to give people some grace time to change their votes...
         if game.phase_name == 'day' and len(game.votes) == game.players_alive:
             game.ticks = 1
+
         # this assumes that yanderes that don't have the vote ability (i.e. traps) don't get to vote
         elif game.phase_name == 'night' and len(game.votes) == games.yandere_killers:
             game.ticks = 1
@@ -182,7 +185,6 @@ class Role:
 
     @property
     def description(self):
-        # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
         return "a {} can {}. {}".format(
             self.name,
             ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',

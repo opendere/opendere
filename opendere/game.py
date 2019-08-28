@@ -71,11 +71,11 @@ class Game:
             messages.append((user.uid, f"you're a {user.role.name}. {user.role.description}"))
 
         messages.append((self.channel, "welcome to opendere. There {} {} {}. it's your job to determine who the {} {}.".format(
-                    'is' if self.yanderes_alive == 1 else 'are',
-                    self.yanderes_alive,
-                    'yandere' if self.yanderes_alive == 1 else 'yanderes',
-                    'yandere' if self.yanderes_alive == 1 else 'yanderes',
-                    'is' if self.yanderes_alive == 1 else 'are'
+            'is' if self.yanderes_alive == 1 else 'are',
+            self.yanderes_alive,
+            'yandere' if self.yanderes_alive == 1 else 'yanderes',
+            'yandere' if self.yanderes_alive == 1 else 'yanderes',
+            'is' if self.yanderes_alive == 1 else 'are'
         )))
 
         if len(self.users) % 2:
@@ -118,7 +118,7 @@ class Game:
 
         role_classes = list(random.choice(
             [role for role in roles.all_role_classes if role.is_yandere],
-            size = num_yanderes
+            size=num_yanderes
         ))
 
         role_classes += list(weighted_choices(weighted_good_and_neutral_role_classes, num_users - num_yanderes))
@@ -141,7 +141,7 @@ class Game:
     @property
     def players_alive(self) -> int:
         """
-        number of yanderes still alive
+        number of players still alive
         """
         return len([user for user in self.users.values() if user.is_alive])
 
@@ -165,7 +165,7 @@ class Game:
         a list of votes and count of each
         """
         votes = "current votes are: "
-        for vote in set([vote for vote in self.votes.values() if vote]):
+        for vote in {vote for vote in self.votes.values() if vote}:
             votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, "
         votes += f"abstained: {list(self.votes.values()).count(None)}, "
         votes += f"undecided: {(self.players_alive if self.phase_name == 'day' else self.yandere_killers) - len(self.votes)}"
@@ -195,6 +195,7 @@ class Game:
                 messages.append((self.channel, f"you lynch {target.nick} and it turns out they were{'' if target.role.is_yandere else ' NOT'} a yandere!"))
             messages.append((self.channel, f"dusk sets on the NIGHT of day {self.day_num}. there are {self.yanderes_alive} {'yandere' if self.yanderes_alive == 1 else 'yanderes'} still at large."))
             messages.append((self.channel, f"please PM/notice {self.bot} with any night-time commands you may have, or with 'abstain' to abstain."))
+            # TODO: random alignment changes, possibly becoming yanderes in the process
             self.phase += 1
         elif self.phase_name == 'night':
             # TODO: night-time hiding and guarding goes here
@@ -206,12 +207,12 @@ class Game:
             # TODO: spying/checking/witnessing goes here
             # TODO: reset hiding/guarding
             if not messages:
-                messages.append((self.channel, f"the dawn comes and it seems everyone survived the night."))
+                messages.append((self.channel, f"...it seems everyone survived the night. it is a brand new day :D"))
             else:
                 random.shuffle(messages)
-                messages.insert(0, (self.channel, f"morning comes with the stench of death D:"))
+                messages.insert(0, (self.channel, f"morning comes with the stench of death."))
             self.phase += 1
-            messages.append((self.channel, f"dawn rises on DAY {self.day_num}. there are {self.yanderes_alive} {'yandere' if self.yanderes_alive == 1 else 'yanderes'} still at large. it is a brand new day :D"))
+            messages.append((self.channel, f"dawn rises on DAY {self.day_num}. there are {self.yanderes_alive} {'yandere' if self.yanderes_alive == 1 else 'yanderes'} still at large."))
 
         # reset everything else for the next phase
         self.ticks = None
@@ -264,17 +265,14 @@ class Game:
         return messages
 
     def tick(self):
-        if self.ticks is None:
+        if not self.ticks:
             return
 
-        if self.ticks:
-            self.ticks -= 1
-
+        self.ticks -= 1
         if self.ticks == 0:
             if self.phase_name == "setup":
                 return self._start_game()
-            else:
-                return self._phase_change()
+            return self._phase_change()
 
     def user_action(self, uid, action, channel=None):
         """
@@ -286,7 +284,7 @@ class Game:
 
         if self.phase_name == "setup":
             return
-        elif channel and self.phase_name == "night":
+        if channel and self.phase_name == "night":
             return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
 
         action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
@@ -316,10 +314,12 @@ class Game:
         """
         messages = list()
 
+        # TODO: implement voting for hurrying
+
         if uid not in self.users:
             messages.append((self.channel, f"you're not playing in the current game."))
 
-        elif self.ticks == None and self.phase >= 0:
+        elif not self.ticks and self.phase >= 0:
             self.ticks = 60
             messages.append((self.channel, f"people are getting impatient! the {self.phase} roles have {self.ticks} seconds to make their decisions before the {self.phase} ends."))
 

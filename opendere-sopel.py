@@ -2,12 +2,9 @@
 # coding=utf-8
 """opendere sopel frontend module"""
 
-from sopel import tools
-from sopel.module import commands, interval, rule, example
-
 import os, sys
+from sopel.module import commands, interval, rule, example
 sys.path.append(os.getcwd())
-
 import opendere.game
 import opendere.roles
 
@@ -50,14 +47,13 @@ def tick(bot):
 @example('!end - end/reset the current game')
 def reset(bot, trigger):
     """
-
+    reset the game state if it's borked
     """
     if trigger.sender not in bot.memory['games']:
         return
-    else:
-        bot.memory['games'][trigger.sender].reset()
-        del bot.memory['games'][trigger.sender]
-        bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
+    bot.memory['games'][trigger.sender].reset()
+    del bot.memory['games'][trigger.sender]
+    bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
 
 @rule(f"{command_prefix}(!opendere|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})")
 @example('!opendere - join an existing (or start a new) game in #opendere')
@@ -71,7 +67,7 @@ def join_game(bot, trigger):
 
     # if no game exists, we need to start one
     if trigger.sender not in bot.memory['games']:
-        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, command_prefix)
+        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
 
     # if one does exist, we can then join the player to it
     for recipient, text in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):
@@ -98,8 +94,8 @@ def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
-                f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
-                channel=trigger.sender if trigger.sender != trigger.nick else None):
+                                                                           f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
+                                                                           channel=trigger.sender if trigger.sender != trigger.nick else None):
         if recipient in bot.memory['opendere_channels']:
             bot.say(bold(text), recipient)
         else:
@@ -119,7 +115,7 @@ def actions(bot, trigger):
 
     # an action that occurs in a channel, e.g. 'vote'
     if trigger.sender in bot.memory['games']:
-        messages = bot.memory['games'][trigger.sender].user_action(trigger.hostmask, trigger.match.string, trigger.sender, trigger.nick)
+        messages = bot.memory['games'][trigger.sender].user_action(trigger.hostmask, trigger.match.string, trigger.sender)
 
     # an action that occurs in a privmsg or notice[?], e.g. 'kill' or 'check'
     # TODO: this probably breaks down if a user is somehow in multiple games, so we need to prevent that later...
