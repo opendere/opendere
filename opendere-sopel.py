@@ -20,7 +20,7 @@ def setup(bot=None):
     bot.memory['opendere_channels'] = opendere_channels
     bot.memory['games'] = dict()
 
-@interval(1)
+@interval(0.1)
 def tick(bot):
     """
     tick down the timer for game state, i.e. the start timer or hurry timer
@@ -29,7 +29,13 @@ def tick(bot):
         if channel not in bot.memory['games']:
             continue
 
-        messages = bot.memory['games'][channel].tick()
+        try:
+            messages = bot.memory['games'][channel].tick()
+        except opendere.game.InsufficientPlayersError:
+            bot.say(bold(f"there aren't enough players to start a game of opendere in {channel}. please try again later."), channel)
+            del bot.memory['games'][channel]
+            continue
+
         if not messages:
             continue
 
@@ -71,6 +77,17 @@ def join_game(bot, trigger):
 
     # if one does exist, we can then join the player to it
     for recipient, text in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
+        else:
+            bot.notice(text, recipient.split('!')[0])
+
+@rule(f"^{command_prefix}(extend)")
+@example('!extend - give more time for people to join the game')
+def extend(bot, trigger):
+    if trigger.sender not in bot.memory['games']:
+        return
+    for recipient, text in bot.memory['games'][trigger.sender].extend(trigger.hostmask):
         if recipient in bot.memory['opendere_channels']:
             bot.say(bold(text), recipient)
         else:

@@ -145,11 +145,11 @@ class VoteKillAbility(Ability):
 
         # if everyone has voted, we can change the phase after this
         # these numbers can be increased to give people some grace time to change their votes...
-        if game.phase_name == 'day' and len(game.votes) == game.players_alive:
+        if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
             game.ticks = 1
 
         # this assumes that yanderes that don't have the vote ability (i.e. traps) don't get to vote
-        elif game.phase_name == 'night' and len(game.votes) == games.yandere_killers:
+        elif game.phase_name == 'night' and len(game.votes) == games.num_yandere_killers:
             game.ticks = 1
 
         return messages
