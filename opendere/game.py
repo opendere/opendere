@@ -97,7 +97,7 @@ class Game:
         """
         the name of the current phase...
         """
-        return "setup" if self.phase is None else ("night" if (self.phase + len(self.users)) % 2 else "day")
+        return "night" if (self.phase + len(self.users)) % 2 else "day"
 
     @property
     def random_emoji(self) -> str:
@@ -107,7 +107,7 @@ class Game:
         """
         smilies = { ':D': 30, ':3': 10, '^_^': 10, 'x_x': 10, 'x.x': 10,
                     ';_;': 10, '(╯°□°）╯︵ ┻━━┻': 5, '┻━┻︵ \(°□°)/ ︵ ┻━┻': 5
-        } 
+        }
         return weighted_choices(smilies, 1)[0]
 
     @property
@@ -143,6 +143,7 @@ class Game:
         """
         time left till the phase ends because why not
         """
+        # rounded off to 1 decimal point for now, but should be removed later
         return round((self.phase_end - datetime.now()).total_seconds(), 1)
 
     @property
@@ -173,7 +174,7 @@ class Game:
         messages = list()
         target = self.tally_votes()
 
-        if self.phase_name == 'setup':
+        if self.phase is None:
             if len(self.users) <= 3:
                 raise InsufficientPlayersError
 
@@ -182,15 +183,13 @@ class Game:
             for i, user in enumerate(self.users.values()):
                 user.role = roles[i]
                 messages.append((user.uid, f"you're a {user.role.name}. {user.role.description}"))
-
-        if not self.phase:
             self.phase = 0
         else:
             self.phase += 1
 
         # these numbers will probably need tweaking. i'm hoping for a much faster paced game than vanilla yandere
         # i've also changed how hurry/extend mechanics work, so keep that in mind as well
-        self.phase_end = datetime.now() + timedelta(seconds=(300 if self.phase_name == 'day' else 120)) 
+        self.phase_end = datetime.now() + timedelta(seconds=(300 if self.phase_name == 'day' else 120))
 
         if (self.phase + len(self.users)) % 2:
             if self.phase <= 0:
@@ -301,12 +300,10 @@ class Game:
         """
         determines whether a user has the ability to take an action, then executes the action
         """
-        if channel and not action.startswith(self.prefix):
+        if self.phase is None or (channel and not action.startswith(self.prefix)):
             return
         action = action.lstrip(self.prefix)
 
-        if self.phase_name == "setup":
-            return
         if channel and self.phase_name == "night":
             return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
 
@@ -334,9 +331,8 @@ class Game:
     def extend(self, uid):
         """
         give people more time, or, secretly let people join the game late :D
-        during the setup, it increases the time in the phase to 60 seconds, or time_left + 30 seconds, whichever is _less, every time it's called
-        during the day this increases the time remaining by 20% for every player that calls it at the time that it's called
-        during the night this increase the time remaining by 10% for
+        before the game starts, this increases the time to 60 seconds, or time_left + 30 seconds, whichever is _less, every time it's called
+        during the game, this increases the time in the phase by a percentage, but will need to be adjusted to scale to the number of players
         """
         messages = list()
         if uid not in self.users:
@@ -349,7 +345,7 @@ class Game:
             # this silently allows players to join the game on the first phase of the game, this is intentional behaviour.
             self.allow_late = True
 
-        if self.phase_name == 'setup':
+        if self.phase is None:
             if self.time_left < 30:
                 self.phase_end = datetime.now() + timedelta(seconds=(self.time_left + 30))
             else:
@@ -357,15 +353,18 @@ class Game:
         else:
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
 
-        messages.append((self.channel, f"players have {self.time_left} seconds before the {self.phase_name} ends!"))
-
+        messages.append((self.channel, "players have {} seconds before the {}".format(
+            self.time_left,
+            "game starts." if not self.phase else f"{self.phase_name} ends."
+        )))
         return messages
 
     def user_hurry(self, uid):
         """
         request that the game be hurried
         during the day this decreases the time remaining by 20% for every player that calls it at the time it's called
-        during all other phases (including setup) the time decreases by 10% for every player that calls it
+        during all other phases the time decreases by 10% for every player that calls it
+        these numbers will need to be adjusted to scale to the number of players
         """
         messages = list()
 
