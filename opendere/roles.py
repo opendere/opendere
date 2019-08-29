@@ -149,10 +149,6 @@ class VoteKillAbility(Ability):
         if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
             game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
 
-        # this assumes that yanderes that don't have the vote ability (i.e. traps) don't get to vote
-        elif game.phase_name == 'night' and len(game.votes) == games.num_yandere_killers:
-            game.phase_end = datetime.now() + timedelta(seconds=random.randint(15))
-
         return messages
 
 class Role:
