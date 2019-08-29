@@ -2,6 +2,7 @@ from enum import Enum
 import inspect
 import math
 from numpy import random
+from datetime import datetime, timedelta
 
 class Alignment(Enum):
     good = 0
@@ -144,13 +145,13 @@ class VoteKillAbility(Ability):
             messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
 
         # if everyone has voted, we can change the phase after this
-        # these numbers can be increased to give people some grace time to change their votes...
+        # these numbers can be increased to give people some grace time to change their votes, or for dramatic effect...
         if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
-            game.ticks = 1
+            game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
 
         # this assumes that yanderes that don't have the vote ability (i.e. traps) don't get to vote
         elif game.phase_name == 'night' and len(game.votes) == games.num_yandere_killers:
-            game.ticks = 1
+            game.phase_end = datetime.now() + timedelta(seconds=random.randint(15))
 
         return messages
 
