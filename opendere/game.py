@@ -143,11 +143,11 @@ class Game:
         """
         time left till the phase ends because why not
         """
-        # rounded off to 1 decimal point for now, but should be removed later
+        # rounded off to 1 decimal point for now, but should probably be completely removed later
         return round((self.phase_end - datetime.now()).total_seconds(), 1)
 
     @property
-    def list_votes(self):
+    def list_votes(self) -> str:
         """
         a list of votes and count of each
         """
@@ -304,9 +304,6 @@ class Game:
             return
         action = action.lstrip(self.prefix)
 
-        if channel and self.phase_name == "night":
-            return [(self.channel, f"commands in the channel are ignored at night. please PM/notice {self.bot} with your commands instead.")]
-
         action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
         for ability in self.users[uid].role.abilities:
             # maybe change ability.name to a list, so we can use that as a list of command aliases?
@@ -355,7 +352,7 @@ class Game:
 
         messages.append((self.channel, "players have {} seconds before the {}".format(
             self.time_left,
-            "game starts." if not self.phase else f"{self.phase_name} ends."
+            "game starts." if self.phase is None else f"{self.phase_name} ends."
         )))
         return messages
 
