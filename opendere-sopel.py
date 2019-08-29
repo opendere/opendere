@@ -87,7 +87,7 @@ def join_game(bot, trigger):
 def extend(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
-    for recipient, text in bot.memory['games'][trigger.sender].extend(trigger.hostmask):
+    for recipient, text in bot.memory['games'][trigger.sender].user_extend(trigger.hostmask):
         if recipient in bot.memory['opendere_channels']:
             bot.say(bold(text), recipient)
         else:

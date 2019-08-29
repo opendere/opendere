@@ -302,9 +302,9 @@ class Game:
         """
         if self.phase is None or (channel and not action.startswith(self.prefix)):
             return
-        action = action.lstrip(self.prefix)
 
-        action = action.lstrip('opendere').lstrip(self.name).split(maxsplit=1)
+        action = action.lstrip(self.prefix).lstrip('opendere').lstrip(self.name).split(maxsplit=1)
+
         for ability in self.users[uid].role.abilities:
             # maybe change ability.name to a list, so we can use that as a list of command aliases?
             if action[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
@@ -325,7 +325,7 @@ class Game:
     def reset(self):
         self.__init__(channel=None, bot=None, name=None)
 
-    def extend(self, uid):
+    def user_extend(self, uid):
         """
         give people more time, or, secretly let people join the game late :D
         before the game starts, this increases the time to 60 seconds, or time_left + 30 seconds, whichever is _less, every time it's called
@@ -336,7 +336,7 @@ class Game:
             messages.append((self.channel, f"you're not playing in the current game."))
 
         elif uid in self.hurries:
-            message.append((uid, f"you've already hurried or extended the phase already."))
+            messages.append((uid, f"you've already hurried or extended the phase already."))
 
         elif self.phase == 0:
             # this silently allows players to join the game on the first phase of the game, this is intentional behaviour.
@@ -350,6 +350,7 @@ class Game:
         else:
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
 
+        self.hurries.append(uid)
         messages.append((self.channel, "players have {} seconds before the {}".format(
             self.time_left,
             "game starts." if self.phase is None else f"{self.phase_name} ends."
@@ -369,10 +370,10 @@ class Game:
             messages.append((self.channel, f"you're not playing in the current game."))
 
         elif uid in self.hurries:
-            message.append((uid, f"you've already hurried or extended the phase already."))
+            messages.append((uid, f"you've already hurried or extended the phase already."))
 
         self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
-        # self.hurries.append(uid)
+        self.hurries.append(uid)
         messages.append((self.channel, f"tick-tock! players have {self.time_left} seconds before the {self.phase_name} ends!"))
 
         return messages
