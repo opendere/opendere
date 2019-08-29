@@ -348,9 +348,9 @@ class Game:
             else:
                 self.phase_end = datetime.now() + timedelta(seconds=60)
         else:
+            self.hurries.append(uid)
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
 
-        self.hurries.append(uid)
         messages.append((self.channel, "players have {} seconds before the {}".format(
             self.time_left,
             "game starts." if self.phase is None else f"{self.phase_name} ends."
