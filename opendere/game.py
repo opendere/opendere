@@ -248,7 +248,7 @@ class Game:
         # set things up for the next phase
         self.hurries = list()
         self.votes = dict()
-        self.actions = dict()
+        self.phase_actions = list()
 
         messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values()])}. {self.time_left} seconds left before, hopefully, one of them dies {self.random_emoji}"))
 
