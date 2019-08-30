@@ -32,7 +32,7 @@ class GuardAction(Action):
             isinstance(action, KillAction)
         ]
         # kill self if the guarded role isn't safe to guard
-        if not self.target_userf.role.safe_to_guard:
+        if not self.target_user.role.safe_to_guard:
             self.game.phase_actions.append(
                 UnstoppableKillAction(self.game, self.target_user, self.user)
             )
