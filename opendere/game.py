@@ -3,14 +3,16 @@ from datetime import datetime, timedelta
 from opendere import roles
 
 
+class InsufficientPlayersError(ValueError):
+    pass
+
+
 def weighted_choices(choice_weight_map, num_choices):
     choices = list(choice_weight_map)
     weight_sum = sum(choice_weight_map.values())
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
     return list(random.choice(choices, (num_choices,), p=probabilities))
 
-class InsufficientPlayersError(ValueError):
-    pass
 
 class User:
     def __init__(self, uid, nick):
@@ -29,6 +31,7 @@ class User:
         self.is_alive = True
         self.is_hidden = False
 
+
 class Game:
     def __init__(self, channel, bot, name, prefix='!', allow_late=False):
         """
@@ -42,7 +45,7 @@ class Game:
         phase_end (datetime.datetime): when the phase is scheduled to end. can be extended or hurried
         hurries (List[User]): users who've requested the phase be hurried
         votes (Dict[User, User]): users and who've they've voted to kill
-        actions (Dict[User, (Ability, User)]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
+        actions (List[Action]): actions queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot = bot
@@ -54,8 +57,8 @@ class Game:
         self.phase_end = None
         self.hurries = []
         # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
-        self.votes = {}
-        self.actions = {}
+        self.votes = {}  # probably can be eliminated and handled by the VoteKillAction
+        self.phase_actions = []
 
     @staticmethod
     def _select_roles(num_users):
@@ -171,6 +174,7 @@ class Game:
         """
         handle events that happen during a phase change
         """
+        # TODO: need a mechanism to apply phase_actions in the order of (action_priority, phase_actions.index(item))
         messages = list()
         target = self.tally_votes()
 
@@ -379,6 +383,7 @@ class Game:
         return messages
 
     def tally_votes(self):
+        # TODO: probably can be moved to VoteKillAction
         counts = sorted({vote: list(self.votes.values()).count(vote) for vote in set(self.votes.values())}.items(), key=lambda x: x[1], reverse=True)
         # no one voted
         if not counts:
