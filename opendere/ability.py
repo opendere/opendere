@@ -47,8 +47,6 @@ class UpgradeAbility(Ability):
     command = 'upgrade <user>'
     is_exclusively_phase_action = False
     #action = UpgradeAction
-    def __call__(self, game, user, target):
-        pass
 
 
 class HideAbility(Ability):
@@ -118,8 +116,13 @@ class VoteKillAbility(Ability):
     command = 'vote <user>'
     is_exclusively_phase_action = True
     action = action.VoteToKillAction
+
+    """
+    # TODO: this should be moved to VoteKillAction and other handlers
+    # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
+
     def __call__(self, game, user, target):
-        # TODO: this should be moved to VoteKillAction
+
         messages = list()
         # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
         reply_to = game.channel if game.phase == 'day' else user.uid
@@ -161,3 +164,4 @@ class VoteKillAbility(Ability):
             game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
 
         return messages
+    """
