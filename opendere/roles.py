@@ -4,6 +4,9 @@ import math
 from numpy import random
 from datetime import datetime, timedelta
 
+from opendere import ability
+
+
 class Alignment(Enum):
     good = 0
     evil = 1
@@ -14,142 +17,6 @@ class Phase(Enum):
     day = 0
     night = 1
 
-
-class Ability:
-    def __init__(self, num_uses=0, phases=[], command_public=False):
-        """
-        num_ability_uses (int): the number of times the ability can be used per game, usually either 0, 1 or infinity
-        phases (List[Phase]): when the ability can be used. day, night or both
-        command_public (boolean): determines whether the action is executed through private message or in the channel
-        """
-        self.num_uses = num_uses
-        self.phases = phases
-        self.command_public = command_public
-
-    @property
-    def description(self):
-        return '{} during the {}, {}, using the command `{}`'.format(
-            self.action_description,
-            ' or '.join([phase.name for phase in self.phases]),
-            'once per game' if self.num_uses != math.inf else f"once every {self.phases[0].name}",
-            self.command
-        )
-
-
-class UpgradeAbility(Ability):
-    name = 'upgrade'
-    action_description = 'upgrade any other player'
-    command = 'upgrade <user>'
-    def __call__(self, game, user, target):
-        pass
-
-
-class HideAbility(Ability):
-    name = 'hide'
-    action_description = 'hide from killers'
-    command = 'hide'
-    def __call__(self, game, user, target):
-        pass
-
-
-class RevealAbility(Ability):
-    name = 'reveal'
-    action_description = 'reveal to all other players'
-    command = 'reveal'
-    def __call__(self, game, user, target):
-        pass
-
-
-class SpyAbility(Ability):
-    name = 'spy'
-    action_description = 'inspect another player\'s role (be careful of disguised roles which may appear as other roles!)'
-    command = 'spy <user>'
-    def __call__(self, game, user, target):
-        pass
-
-
-class StalkAbility(Ability):
-    name = 'stalk'
-    action_description = 'learn where another player goes'
-    command = 'stalk <user>'
-    def __call__(self, game, user, target):
-        pass
-
-
-class CheckAbility(Ability):
-    name = 'check'
-    action_description = 'inspect another player\'s alignment'
-    command = 'check <user>'
-    def __call__(self, game, user, target):
-        pass
-
-
-class GuardAbility(Ability):
-    name = 'guard'
-    action_description = 'protect a player from any danger'
-    command = 'guard <user>'
-    def __call__(self, game, user, target):
-        pass
-
-class KillAbility(Ability):
-    name = 'kill'
-    action_description = 'single-handedly kill a player of their choosing'
-    command = 'kill <user>'
-    def __call__(self, game, user, target):
-        pass
-
-
-class VoteKillAbility(Ability):
-    """
-    vote to kill someone with your voting cohort
-    your cohort consists of your unique (command_public, phase) combination,
-    that means public-command day voters vote together (typical lynching)
-    """
-    name = 'vote'
-    action_description = 'vote with others to kill'
-    command = 'vote <user>'
-    def __call__(self, game, user, target):
-        messages = list()
-        # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
-        reply_to = game.channel if game.phase == 'day' else user.uid
-
-        if target in ['u', 'unvote', 'undecide', 'undecided']:
-            if user not in game.votes:
-                messages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
-            else:
-                prev = game.votes.pop(user)
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to undecided. {game.list_votes}"))
-
-        elif target in ['a', 'abstain']:
-            if user not in game.votes:
-                game.votes[user] = None
-                messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
-            elif game.votes[user] is None:
-                messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
-            elif game.votes[user] is not None:
-                prev, game.votes[user] = game.votes.pop(user), None
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick} to abstain. {game.list_votes}"))
-
-        elif target is not None and user != target:
-            if user not in game.votes:
-                game.votes[user] = target
-                messages.append((reply_to, f"{user.nick} has voted for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] == target:
-                messages.append((reply_to, f"{user.nick}: you're already voting for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] != target:
-                prev, game.votes[user] = game.votes.pop(user), target
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to {target.nick}. {game.list_votes}"))
-
-        else:
-            # should only ever get here if one votes for themselves
-            messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
-
-        # if everyone has voted, we can change the phase after this
-        # these numbers can be increased to give people some grace time to change their votes, or for dramatic effect...
-        if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
-            game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
-
-        return messages
 
 class Role:
     """
@@ -184,7 +51,7 @@ class Role:
     def description(self):
         return "a {} can {}. {}".format(
             self.name,
-            ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
+            ', and can '.join([ab.description for ab in self.abilities if not ab.command_public]) or '...do nothing special. :( sorry',
             f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
 # TODO: change all classes to PARTIALS
@@ -195,8 +62,8 @@ class Hikikomori(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        HideAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.HideAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -205,8 +72,8 @@ class Tokokyohi(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        HideAbility(num_uses=1, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.HideAbility(num_uses=1, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Hikikomori]
 
@@ -216,8 +83,8 @@ class Shogun(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -226,8 +93,8 @@ class Warrior(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=1, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Shogun]
 
@@ -237,8 +104,8 @@ class Samurai(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -247,8 +114,8 @@ class Ronin(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Samurai],
 
@@ -258,8 +125,8 @@ class Shisho(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        UpgradeAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.UpgradeAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -268,8 +135,8 @@ class Sensei(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        UpgradeAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.UpgradeAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Shisho],
 
@@ -279,8 +146,8 @@ class Idol(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        RevealAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.RevealAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Sensei, Ronin],
 
@@ -290,7 +157,7 @@ class Janitor(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Idol]
 
@@ -300,8 +167,8 @@ class Spy(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -310,8 +177,8 @@ class DaySpy(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -320,8 +187,8 @@ class Esper(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        SpyAbility(num_uses=1, phases=[Phase.day, Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=1, phases=[Phase.day, Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Spy, DaySpy]
 
@@ -331,8 +198,8 @@ class Stalker(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        StalkAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.StalkAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -341,8 +208,8 @@ class Witness(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        StalkAbility(num_uses=1, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.StalkAbility(num_uses=1, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Stalker]
 
@@ -352,8 +219,8 @@ class Detective(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        CheckAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.CheckAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     appearances = ['yandere', 'yandere spy', 'yandere doppelganger', 'strawberry yandere']
 
@@ -363,8 +230,8 @@ class Snoop(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        CheckAbility(num_uses=1, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.CheckAbility(num_uses=1, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Detective]
     appearances = ['yandere', 'psychic yandere', 'yandere doppelganger', 'vanilla yandere', 'yandere senpai']
@@ -375,8 +242,8 @@ class Guardian(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        GuardAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.GuardAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -385,8 +252,8 @@ class Nurse(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        GuardAbility(num_uses=1, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.GuardAbility(num_uses=1, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Guardian]
 
@@ -396,7 +263,7 @@ class Civilian(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Tokokyohi, Warrior, Janitor, Esper, Witness, Snoop, Nurse]
 
@@ -406,7 +273,7 @@ class Tsundere(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Hikikomori]
     appearances = ['yandere', 'psychic yandere', 'yandere ronin', 'yandere senpai', 'yandere doppelganger', 'chocolate yandere']
@@ -417,8 +284,8 @@ class PsychicIdiot(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.day, Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=math.inf, phases=[Phase.day, Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -427,8 +294,8 @@ class IdiotSavant(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        UpgradeAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.UpgradeAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -437,8 +304,8 @@ class Myth(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        KillAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -447,8 +314,8 @@ class NullCarrier(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        HideAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.HideAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
 
@@ -457,7 +324,7 @@ class BakaRanger(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [PsychicIdiot, IdiotSavant, Myth, NullCarrier],
 
@@ -467,9 +334,9 @@ class YandereSpy(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=math.inf, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     safe_to_guard = False
 
@@ -479,9 +346,9 @@ class YandereSenpai(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        UpgradeAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.UpgradeAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     safe_to_guard = False
 
@@ -491,9 +358,9 @@ class YandereRonin(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.KillAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     safe_to_guard = False
 
@@ -503,9 +370,9 @@ class PsychicYandere(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        SpyAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [YandereSpy]
     safe_to_guard = False
@@ -516,9 +383,9 @@ class CloakedPsychicYandere(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        SpyAbility(num_uses=1, phases=[Phase.day]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.SpyAbility(num_uses=1, phases=[Phase.day]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     appearances = ['civilian', 'dayspy', 'tokokyohi', 'hikikomori', 'nurse', 'guardian', 'warrior', 'esper', 'spy', 'shogun']
     safe_to_guard = True
@@ -529,8 +396,8 @@ class CloakedYandere(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [CloakedPsychicYandere]
     appearances = ['civilian', 'tokokyohi', 'hikikomori', 'nurse', 'guardian', 'warrior', 'witness', 'stalker', 'shogun']
@@ -542,8 +409,8 @@ class YandereDoppelganger(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [CloakedYandere]
     safe_to_guard = False
@@ -554,8 +421,8 @@ class Yandere(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [YandereDoppelganger, CloakedYandere, PsychicYandere, YandereSpy, YandereRonin, YandereSenpai]
     safe_to_guard = False
@@ -566,7 +433,7 @@ class Trap(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
+        ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [CloakedYandere, BakaRanger]
     appearances = ['civilian', 'tokokyohi', 'hikikomori', 'nurse', 'guardian', 'warrior', 'witness', 'snoop', 'detective']
