@@ -11,8 +11,6 @@ def test_create_game_too_few():
     test.join_game('c', 'catties')
     assert len(test.users) == 3
     test.user_hurry('a')
-    test.user_hurry('b')
-    test.user_hurry('c')
     with freeze_time(test.phase_end):
         with pytest.raises(ValueError):
             test.tick()
@@ -25,9 +23,6 @@ def test_create_game_success():
     test.join_game('d', 'daddies')
     assert len(test.users) == 4
     test.user_hurry('a')
-    test.user_hurry('b')
-    test.user_hurry('c')
-    test.user_hurry('d')
     assert test.phase == None
     with freeze_time(test.phase_end):
         test.tick()
@@ -46,14 +41,7 @@ def test_create_night_game_success():
     test.join_game('g', 'gummies')
     test.join_game('h', 'hotties')
     assert len(test.users) == 7
-    test.user_hurry('a')
-    test.user_hurry('b')
-    test.user_hurry('c')
-    test.user_hurry('d')
     test.user_hurry('e')
-    test.user_hurry('f')
-    test.user_hurry('g')
-    test.user_hurry('h')
     assert test.phase == None
     with freeze_time(test.phase_end):
         test.tick()
