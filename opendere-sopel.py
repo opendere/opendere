@@ -2,97 +2,155 @@
 # coding=utf-8
 """opendere sopel frontend module"""
 
-from sopel import tools
+import os, sys
 from sopel.module import commands, interval, rule, example
-
-import sys
-sys.path.append('/home/libbies/.sopel/modules')
-
+sys.path.append(os.getcwd())
 import opendere.game
 import opendere.roles
 
-allowed_channels = ['#opendere']
+opendere_channels = ['#opendere']
 command_prefix = '!'
+
+def bold(msg):
+    return f"\x02{msg}\x0f"
 
 def setup(bot=None):
     if not bot:
         return
-    bot.memory['allowed_channels'] = allowed_channels 
+    bot.memory['opendere_channels'] = opendere_channels
     bot.memory['games'] = dict()
 
-@interval(1)
+@interval(0.1)
 def tick(bot):
     """
     tick down the timer for game state, i.e. the start timer or hurry timer
     """
     for channel in bot.channels:
         if channel not in bot.memory['games']:
-            return
-        messages = bot.memory['games'][channel].tick()
-        if not messages:
-            return
-        for msg in messages:
-            recipient, text = msg
-            if recipient in bot.memory['allowed_channels']:
-                bot.say('\x02' + text + '\x0f', recipient)
-            else:
-                recipient = recipient.split('!')[0]
-                bot.notice(text, recipient)
+            continue
 
-@rule(f"{command_prefix}({'|'.join([channel.lstrip('#') for channel in allowed_channels])})")
+        try:
+            messages = bot.memory['games'][channel].tick()
+        except opendere.game.InsufficientPlayersError:
+            bot.say(bold(f"there aren't enough players to start a game of opendere in {channel}. please try again later."), channel)
+            del bot.memory['games'][channel]
+            continue
+
+        if not messages:
+            continue
+
+        for recipient, text in messages:
+            if recipient in bot.memory['opendere_channels']:
+                bot.say(bold(text), recipient)
+            else:
+                bot.notice(text, recipient.split('!')[0])
+
+        # if the game has ended or been reset
+        if bot.memory['games'][channel].channel is None:
+            del bot.memory['games'][channel]
+
+@rule(f"^{command_prefix}(e$|end|r$|reset|restart)")
+@example('!end - end/reset the current game')
+def reset(bot, trigger):
+    """
+    reset the game state if it's borked
+    """
+    if trigger.sender not in bot.memory['games']:
+        return
+    bot.memory['games'][trigger.sender].reset()
+    del bot.memory['games'][trigger.sender]
+    bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
+
+@rule(f"{command_prefix}(!opendere|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})")
 @example('!opendere - join an existing (or start a new) game in #opendere')
 def join_game(bot, trigger):
     """
     join an existing (or start a new) opendere instance
     """
-    if trigger.sender not in bot.memory['allowed_channels']:
-        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['allowed_channels'])}") 
+    if trigger.sender not in bot.memory['opendere_channels']:
+        # bot.say(f"you can only join or start a game from {' or '.join(bot.memory['opendere_channels'])}")
         return
+
+    # if no game exists, we need to start one
     if trigger.sender not in bot.memory['games']:
-        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, command_prefix)
-    for msg in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):
-        recipient, text = msg
-        if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
+
+    # if one does exist, we can then join the player to it
+    for recipient, text in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
         else:
-            recipient = recipient.split('!')[0]
-            bot.notice(text, recipient)
+            bot.notice(text, recipient.split('!')[0])
 
-@commands('end|reset|restart')
-@example('!end - end the current game')
-def reset(bot, trigger):
-    if trigger.sender not in bot.memory['allowed_channels']:
-        return
+@rule(f"^{command_prefix}(extend)")
+@example('!extend - give more time for people to join the game')
+def extend(bot, trigger):
     if trigger.sender not in bot.memory['games']:
-        bot.say(f"there isn't a running game in {trigger.sender} to end.") 
         return
-    bot.memory['games'][trigger.sender].reset()
-    del bot.memory['games'][trigger.sender]
-    bot.say(f"the current game in {trigger.sender} has been ended.")
+    for recipient, text in bot.memory['games'][trigger.sender].user_extend(trigger.hostmask):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
+        else:
+            bot.notice(text, recipient.split('!')[0])
 
-# can likely replace all of these below commands with a single regex
-@commands('hurry')
-@example('!hurry - hurry the current phase')
+@rule(f"^{command_prefix}(h$|hurry|hayaku)")
+@example('!hurry - vote to hurry the current phase')
 def hurry(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
-    for msg in bot.memory['games'][trigger.sender].user_hurry(trigger.hostmask):
-        recipient, text = msg
-        if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+    for recipient, text in bot.memory['games'][trigger.sender].user_hurry(trigger.hostmask):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
         else:
-            recipient = recipient.split('!')[0]
-            bot.notice(text, recipient)
+            bot.notice(text, recipient.split('!')[0])
 
-@commands('vote')
-@example('!vote <target> - vote to kill someone')
-def vote(bot, trigger):
+# alias for 'vote abstain' and 'vote undecided'
+@rule(f"^{command_prefix}(a$|u$|abstain|unvote)")
+@example('!unvote - change your vote to undecided')
+def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
-    for msg in bot.memory['games'][trigger.sender].user_action(trigger.hostmask, 'vote'):
-        recipient, text = msg
-        if recipient in bot.memory['allowed_channels']:
-            bot.say('\x02' + text + '\x0f', recipient)
+    for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
+                                                                           f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
+                                                                           channel=trigger.sender if trigger.sender != trigger.nick else None):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
         else:
-            recipient = recipient.split('!')[0]
-            bot.notice(text, recipient)
+            bot.notice(text, recipient.split('!')[0])
+
+@rule(f"^{command_prefix}[^$]+")
+@example("!vote <target> - use an ability against a target (e.g. 'vote kitties' or 'kill kitties')")
+def actions(bot, trigger):
+    # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
+    messages = list()
+    if trigger.sender in bot.memory['opendere_channels'] and trigger.sender not in bot.memory['games']:
+        if trigger.match.string.lstrip(command_prefix) in ['opendere', trigger.sender.lstrip('#')]:
+            bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
+        else:
+            # bot.say(trigger.sender, f"you can only start a game from {' or '.join(bot.memory['opendere_channels'])}")
+            return
+
+    # an action that occurs in a channel, e.g. 'vote'
+    if trigger.sender in bot.memory['games']:
+        messages = bot.memory['games'][trigger.sender].user_action(trigger.hostmask, trigger.match.string, trigger.sender)
+
+    # an action that occurs in a privmsg or notice[?], e.g. 'kill' or 'check'
+    # TODO: this probably breaks down if a user is somehow in multiple games, so we need to prevent that later...
+    elif trigger.hostmask in [user.uid for game in bot.memory['games'].values() for user in game.users.values()]:
+        game = next((game.channel for game in bot.memory['games'].values() for user in game.users.values() if user.uid == trigger.hostmask), None)
+        if not game:
+            return
+        messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string)
+
+    if not messages:
+        return
+
+    for recipient, text in messages:
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
+        else:
+            bot.notice(text, recipient.split('!')[0])
+
+    # if the game has ended or been reset
+    if bot.memory['games'][trigger.sender].channel is None:
+        del bot.memory['games'][trigger.sender]

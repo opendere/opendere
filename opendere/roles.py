@@ -1,7 +1,8 @@
 from enum import Enum
 import inspect
 import math
-
+from numpy import random
+from datetime import datetime, timedelta
 
 class Alignment(Enum):
     good = 0
@@ -27,10 +28,10 @@ class Ability:
 
     @property
     def description(self):
-        return '{} during the {} {} time(s). Command: `{}`'.format(
+        return '{} during the {}, {}, using the command `{}`'.format(
             self.action_description,
-            ' or '.join(self.phases),
-            self.num_uses,
+            ' or '.join([phase.name for phase in self.phases]),
+            'once per game' if self.num_uses != math.inf else f"once every {self.phases[0].name}",
             self.command
         )
 
@@ -39,7 +40,7 @@ class UpgradeAbility(Ability):
     name = 'upgrade'
     action_description = 'upgrade any other player'
     command = 'upgrade <user>'
-    def __call__(self):
+    def __call__(self, game, user, target):
         pass
 
 
@@ -47,48 +48,54 @@ class HideAbility(Ability):
     name = 'hide'
     action_description = 'hide from killers'
     command = 'hide'
-    def __call__(self, user):
+    def __call__(self, game, user, target):
         pass
 
 
 class RevealAbility(Ability):
     name = 'reveal'
     action_description = 'reveal to all other players'
-    def __call__(self, user):
+    command = 'reveal'
+    def __call__(self, game, user, target):
         pass
 
 
 class SpyAbility(Ability):
     name = 'spy'
-    action_description = 'inspect another players role'
-    def __call__(self, user):
+    action_description = 'inspect another player\'s role (be careful of disguised roles which may appear as other roles!)'
+    command = 'spy <user>'
+    def __call__(self, game, user, target):
         pass
 
 
 class StalkAbility(Ability):
     name = 'stalk'
     action_description = 'learn where another player goes'
-    def __call__(self, user):
+    command = 'stalk <user>'
+    def __call__(self, game, user, target):
         pass
 
 
 class CheckAbility(Ability):
     name = 'check'
-    action_description = 'inspect another players alignment'
-    def __call__(self, user):
+    action_description = 'inspect another player\'s alignment'
+    command = 'check <user>'
+    def __call__(self, game, user, target):
         pass
 
 
 class GuardAbility(Ability):
     name = 'guard'
     action_description = 'protect a player from any danger'
-    def __call__(self, user):
+    command = 'guard <user>'
+    def __call__(self, game, user, target):
         pass
 
 class KillAbility(Ability):
     name = 'kill'
     action_description = 'single-handedly kill a player of their choosing'
-    def __call__(self, user):
+    command = 'kill <user>'
+    def __call__(self, game, user, target):
         pass
 
 
@@ -98,11 +105,51 @@ class VoteKillAbility(Ability):
     your cohort consists of your unique (command_public, phase) combination,
     that means public-command day voters vote together (typical lynching)
     """
-    name = 'vote to kill'
+    name = 'vote'
     action_description = 'vote with others to kill'
-    def __call__(self, user):
-        pass
+    command = 'vote <user>'
+    def __call__(self, game, user, target):
+        messages = list()
+        # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
+        reply_to = game.channel if game.phase == 'day' else user.uid
 
+        if target in ['u', 'unvote', 'undecide', 'undecided']:
+            if user not in game.votes:
+                messages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
+            else:
+                prev = game.votes.pop(user)
+                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to undecided. {game.list_votes}"))
+
+        elif target in ['a', 'abstain']:
+            if user not in game.votes:
+                game.votes[user] = None
+                messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
+            elif game.votes[user] is None:
+                messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
+            elif game.votes[user] is not None:
+                prev, game.votes[user] = game.votes.pop(user), None
+                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick} to abstain. {game.list_votes}"))
+
+        elif target is not None and user != target:
+            if user not in game.votes:
+                game.votes[user] = target
+                messages.append((reply_to, f"{user.nick} has voted for {target.nick}. {game.list_votes}"))
+            elif game.votes[user] == target:
+                messages.append((reply_to, f"{user.nick}: you're already voting for {target.nick}. {game.list_votes}"))
+            elif game.votes[user] != target:
+                prev, game.votes[user] = game.votes.pop(user), target
+                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to {target.nick}. {game.list_votes}"))
+
+        else:
+            # should only ever get here if one votes for themselves
+            messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
+
+        # if everyone has voted, we can change the phase after this
+        # these numbers can be increased to give people some grace time to change their votes, or for dramatic effect...
+        if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
+            game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
+
+        return messages
 
 class Role:
     """
@@ -131,13 +178,15 @@ class Role:
         self.abilities = list(self.abilities)
         self.upgrades = list(self.upgrades)
         self.appearances = self.appearances or [self.name]
+        self.appear_as = random.choice(self.appearances)
 
     @property
     def description(self):
-        # TODO: "Be careful of disguised roles like traps and tsunderes which will be misreported."
-        return f'{self.name} have the ability ton {self.ability.description}. You appear as {self.appearances} to spies.'
-
-
+        return "a {} can {}. {}".format(
+            self.name,
+            ', and can '.join([ability.description for ability in self.abilities if not ability.command_public]) or '...do nothing special. :( sorry',
+            f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
+        )
 # TODO: change all classes to PARTIALS
 
 
@@ -198,7 +247,7 @@ class Ronin(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        KillAbility(num_uses=1, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Samurai],
@@ -230,7 +279,7 @@ class Idol(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        RevealAbility(num_uses=math.inf, phases=[Phase.night, Phase.day]),
+        RevealAbility(num_uses=math.inf, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Sensei, Ronin],
@@ -271,7 +320,7 @@ class Esper(Role):
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
-        SpyAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        SpyAbility(num_uses=1, phases=[Phase.day, Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [Spy, DaySpy]
@@ -368,7 +417,7 @@ class PsychicIdiot(Role):
     is_yandere = False
     default_alignment = Alignment.neutral
     abilities = [
-        SpyAbility(num_uses=math.inf, phases=[Phase.night, Phase.day]),
+        SpyAbility(num_uses=math.inf, phases=[Phase.day, Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
 
@@ -442,7 +491,7 @@ class YandereRonin(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        KillAbility(num_uses=1, phases=[Phase.night, Phase.day]),
+        KillAbility(num_uses=1, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
@@ -517,7 +566,6 @@ class Trap(Role):
     is_yandere = True
     default_alignment = Alignment.evil
     abilities = [
-        VoteKillAbility(num_uses=math.inf, phases=[Phase.day]),
         VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
     upgrades = [CloakedYandere, BakaRanger]
