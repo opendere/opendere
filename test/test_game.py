@@ -1,8 +1,6 @@
-import pytest, time
+import pytest
 from freezegun import freeze_time
-from datetime import datetime, timedelta
 from opendere import game
-
 
 def test_create_game_too_few():
     test = game.Game('#test', 'test', 'test')
