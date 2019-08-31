@@ -100,7 +100,7 @@ class Game:
         """
         the name of the current phase...
         """
-        return "night" if (self.phase + len(self.users)) % 2 else "day"
+        return None if self.phase is None else ("night" if (self.phase + len(self.users)) % 2 else "day")
 
     @property
     def random_emoji(self) -> str:
