@@ -1,6 +1,6 @@
-from numpy import random
 from datetime import datetime, timedelta
-from opendere import roles
+from numpy import random
+from opendere import roles, action
 
 
 class InsufficientPlayersError(ValueError):
@@ -45,7 +45,7 @@ class Game:
         phase_end (datetime.datetime): when the phase is scheduled to end. can be extended or hurried
         hurries (List[User]): users who've requested the phase be hurried
         votes (Dict[User, User]): users and who've they've voted to kill
-        actions (List[Action]): actions queued to execute at the end of phase (e.g. hides, kills, checks)
+        phase_actions (List[Action]): actions queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot = bot
@@ -108,8 +108,15 @@ class Game:
         a random smiley
         rarely an actual emoji but i'm not calling the function random_smiley unless someone tells me to change it or remove it
         """
-        smilies = { ':D': 30, ':3': 10, '^_^': 10, 'x_x': 10, 'x.x': 10,
-                    ';_;': 10, '(╯°□°）╯︵ ┻━━┻': 5, '┻━┻︵ \(°□°)/ ︵ ┻━┻': 5
+        smilies = {
+            r':D': 30,
+            r':3': 10,
+            r'^_^': 10,
+            r'x_x': 10,
+            r'x.x': 10,
+            r';_;': 10,
+            r'(╯°□°）╯︵ ┻━━┻': 5,
+            r'┻━┻︵ \(°□°)/ ︵ ┻━┻': 5
         }
         return weighted_choices(smilies, 1)[0]
 
@@ -170,11 +177,25 @@ class Game:
         # TODO: handle nickname changes. i still don't know what do about untypeable nicks on discord though
         pass
 
+    def _process_phase_actions(self):
+        messages = []
+        while self.phase_actions:
+            # pop first item from list sorted by (action_priority, index in list)
+            top_priority_action_index = self.phase_actions.index(min(
+                self.phase_actions, key=lambda a: (
+                    action.action_priority.index(type(a)),  # actions type priority
+                    self.phase_actions.index(a)  # actions position priority
+                )
+            ))
+            curr_action = self.phase_actions.pop(top_priority_action_index)
+            messages.append(curr_action())  # apply action and add resulting messages
+        return messages
+
     def _phase_change(self):
         """
         handle events that happen during a phase change
         """
-        # TODO: need a mechanism to apply phase_actions in the order of (action_priority, phase_actions.index(item))
+        #TODO: replace the current vote-counting code with a call to self._process_phase_actions()
         messages = list()
         target = self.tally_votes()
 

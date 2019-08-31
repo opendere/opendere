@@ -116,6 +116,8 @@ class VoteKillAbility(Ability):
     name = 'vote'
     action_description = 'vote with others to kill'
     command = 'vote <user>'
+    is_exclusively_phase_action = True
+    action = action.VoteToKillAction
     def __call__(self, game, user, target):
         # TODO: this should be moved to VoteKillAction
         messages = list()
