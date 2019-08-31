@@ -47,10 +47,6 @@ class KillAction(Action):
 
 
 class VoteToKillAction(Action):
-    # nothing to do here except ensure the votes will be executed at end of round.
-    # This action only exist to track votes, which are applied by ApplyKillVotesAction
-    apply_votes_action_class = None
-
     def __call__(self):
         # at the end of the phase, the first VoteToKillAction handles this logic for all
         # instances of this action then deletes all instances of VoteToKillAction
