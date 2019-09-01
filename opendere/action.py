@@ -76,7 +76,7 @@ class UnstoppableKillAction(Action):
 
 class GuardAction(Action):
     def __call__(self):
-        # eliminate any actions that kill self.user
+        # eliminate any actions that kill self.target_user
         self.game.phase_actions = [
             action for action in self.game.phase_actions
             if not (isinstance(action, KillAction) and action.target_user == self.target_user)
