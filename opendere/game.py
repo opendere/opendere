@@ -1,6 +1,10 @@
-from numpy import random
 from datetime import datetime, timedelta
-from opendere import roles
+from numpy import random
+from opendere import roles, action
+
+
+class InsufficientPlayersError(ValueError):
+    pass
 
 
 def weighted_choices(choice_weight_map, num_choices):
@@ -9,8 +13,6 @@ def weighted_choices(choice_weight_map, num_choices):
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
     return list(random.choice(choices, (num_choices,), p=probabilities))
 
-class InsufficientPlayersError(ValueError):
-    pass
 
 class User:
     def __init__(self, uid, nick):
@@ -29,6 +31,7 @@ class User:
         self.is_alive = True
         self.is_hidden = False
 
+
 class Game:
     def __init__(self, channel, bot, name, prefix='!', allow_late=False):
         """
@@ -42,7 +45,7 @@ class Game:
         phase_end (datetime.datetime): when the phase is scheduled to end. can be extended or hurried
         hurries (List[User]): users who've requested the phase be hurried
         votes (Dict[User, User]): users and who've they've voted to kill
-        actions (Dict[User, (Ability, User)]): abilities queued to execute at the end of phase (e.g. hides, kills, checks)
+        phase_actions (List[Action]): actions queued to execute at the end of phase (e.g. hides, kills, checks)
         """
         self.channel = channel
         self.bot = bot
@@ -54,8 +57,8 @@ class Game:
         self.phase_end = None
         self.hurries = []
         # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
-        self.votes = {}
-        self.actions = {}
+        self.votes = {}  # probably can be eliminated and handled by the VoteKillAction
+        self.phase_actions = []
 
     @staticmethod
     def _select_roles(num_users):
@@ -105,8 +108,15 @@ class Game:
         a random smiley
         rarely an actual emoji but i'm not calling the function random_smiley unless someone tells me to change it or remove it
         """
-        smilies = { ':D': 30, ':3': 10, '^_^': 10, 'x_x': 10, 'x.x': 10,
-                    ';_;': 10, '(╯°□°）╯︵ ┻━━┻': 5, '┻━┻︵ \(°□°)/ ︵ ┻━┻': 5
+        smilies = {
+            r':D': 30,
+            r':3': 10,
+            r'^_^': 10,
+            r'x_x': 10,
+            r'x.x': 10,
+            r';_;': 10,
+            r'(╯°□°）╯︵ ┻━━┻': 5,
+            r'┻━┻︵ \(°□°)/ ︵ ┻━┻': 5
         }
         return weighted_choices(smilies, 1)[0]
 
@@ -167,10 +177,25 @@ class Game:
         # TODO: handle nickname changes. i still don't know what do about untypeable nicks on discord though
         pass
 
+    def _process_phase_actions(self):
+        messages = []
+        while self.phase_actions:
+            # pop first item from list sorted by (action_priority, index in list)
+            top_priority_action_index = self.phase_actions.index(min(
+                self.phase_actions, key=lambda a: (
+                    action.action_priority.index(type(a)),  # actions type priority
+                    self.phase_actions.index(a)  # actions position priority
+                )
+            ))
+            curr_action = self.phase_actions.pop(top_priority_action_index)
+            messages.append(curr_action())  # apply action and add resulting messages
+        return messages
+
     def _phase_change(self):
         """
         handle events that happen during a phase change
         """
+        #TODO: replace the current vote-counting code with a call to self._process_phase_actions()
         messages = list()
         target = self.tally_votes()
 
@@ -244,7 +269,7 @@ class Game:
         # set things up for the next phase
         self.hurries = list()
         self.votes = dict()
-        self.actions = dict()
+        self.phase_actions = list()
 
         messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values()])}. {self.time_left} seconds left before, hopefully, one of them dies {self.random_emoji}"))
 
@@ -379,6 +404,7 @@ class Game:
         return messages
 
     def tally_votes(self):
+        # TODO: probably can be moved to VoteKillAction
         counts = sorted({vote: list(self.votes.values()).count(vote) for vote in set(self.votes.values())}.items(), key=lambda x: x[1], reverse=True)
         # no one voted
         if not counts:
