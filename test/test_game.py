@@ -4,50 +4,42 @@ from opendere import game
 
 
 def test_create_game_too_few():
-    test = game.Game('#test', 'test', 'test')
-    test.join_game('a', 'kitties')
-    test.join_game('b', 'bunnies')
-    test.join_game('c', 'catties')
+    g = game.Game(None, None, None)
+    for i in range(3):
+        g.join_game(str(i), str(i))
 
-    assert len(test.users) == 3
-    with freeze_time(test.phase_end):
+    assert len(g.users) == 3
+    with freeze_time(g.phase_end):
         with pytest.raises(ValueError):
-            test.tick()
+            g.tick()
 
 
 def test_create_game_success():
-    test = game.Game('#test', 'test', 'test')
-    test.join_game('a', 'kitties')
-    test.join_game('b', 'bunnies')
-    test.join_game('c', 'catties')
-    test.join_game('d', 'daddies')
+    g = game.Game(None, None, None)
+    for i in range(4):
+        g.join_game(str(i), str(i))
 
-    assert len(test.users) == 4
-    assert test.phase == None
-    with freeze_time(test.phase_end):
-        test.tick()
-    assert test.phase == 0
-    assert test.phase_name == 'day'
-    assert test.num_yanderes_alive == 1
+    assert len(g.users) == 4
+    assert g.phase == None
+    with freeze_time(g.phase_end):
+        g.tick()
+    assert g.phase == 0
+    assert g.phase_name == 'day'
+    assert g.num_yanderes_alive == 1
 
 
 def test_create_night_game_success():
-    test = game.Game('#test', 'test', 'test')
-    test.join_game('a', 'kitties')
-    test.join_game('b', 'bunnies')
-    test.join_game('c', 'catties')
-    test.join_game('d', 'daddies')
-    # test.join_game('e', 'e')
-    test.join_game('f', 'furries')
-    test.join_game('g', 'gummies')
-    test.join_game('h', 'hotties')
-    test.user_hurry('a')
-    test.user_hurry('e')
+    g = game.Game(None, None, None)
+    for i in range(7):
+        g.join_game(str(i), str(i))
 
-    assert len(test.users) == 7
-    assert test.phase == None
-    with freeze_time(test.phase_end):
-        test.tick()
-    assert test.phase == 0
-    assert test.phase_name == 'night'
-    assert test.num_yanderes_alive == 2
+    g.user_hurry('a')
+    g.user_hurry('e')
+
+    assert len(g.users) == 7
+    assert g.phase == None
+    with freeze_time(g.phase_end):
+        g.tick()
+    assert g.phase == 0
+    assert g.phase_name == 'night'
+    assert g.num_yanderes_alive == 2
