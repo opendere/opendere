@@ -111,8 +111,8 @@ def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
-                                                                           f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
-                                                                           channel=trigger.sender if trigger.sender != trigger.nick else None):
+            f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
+            channel=trigger.sender if trigger.sender != trigger.nick else None):
         if recipient in bot.memory['opendere_channels']:
             bot.say(bold(text), recipient)
         else:

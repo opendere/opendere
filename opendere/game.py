@@ -56,8 +56,6 @@ class Game:
         self.phase = None
         self.phase_end = None
         self.hurries = []
-        # maybe should be moved to User for `[user.vote for user in self.users.values()]` instead
-        self.votes = {}  # probably can be eliminated and handled by the VoteKillAction
         self.phase_actions = []
 
     @staticmethod
@@ -149,7 +147,7 @@ class Game:
         return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere for ability in user.role.abilities if ability.name == 'vote' for phase in ability.phases if phase.name == 'night'])
 
     @property
-    def time_left(self) -> float:
+    def phase_seconds_left(self) -> float:
         """
         time left till the phase ends because why not
         """
@@ -178,17 +176,16 @@ class Game:
         pass
 
     def _process_phase_actions(self):
-        messages = []
+        # man, fuck action_priority libbies
+        messages = list()
+        # FIXME: completed_actions will probably need to move elsewhere
+        completed_actions = list()
+
         while self.phase_actions:
-            # pop first item from list sorted by (action_priority, index in list)
-            top_priority_action_index = self.phase_actions.index(min(
-                self.phase_actions, key=lambda a: (
-                    action.action_priority.index(type(a)),  # actions type priority
-                    self.phase_actions.index(a)  # actions position priority
-                )
-            ))
-            curr_action = self.phase_actions.pop(top_priority_action_index)
-            messages.append(curr_action())  # apply action and add resulting messages
+            action = self.phase_actions[0]
+            messages += action()
+            if self.phase_actions[0] == action:
+                completed_actions.append(self.phase_actions.pop(0))
         return messages
 
     def _phase_change(self):
@@ -197,7 +194,6 @@ class Game:
         """
         #TODO: replace the current vote-counting code with a call to self._process_phase_actions()
         messages = list()
-        target = self.tally_votes()
 
         if self.phase is None:
             if len(self.users) <= 3:
@@ -210,24 +206,15 @@ class Game:
                 messages.append((user.uid, f"you're a {user.role.name}. {user.role.description}"))
             self.phase = 0
         else:
+            messages += self._process_phase_actions()
             self.phase += 1
+        random.shuffle(messages)
 
         # these numbers will probably need tweaking. i'm hoping for a much faster paced game than vanilla yandere
         # i've also changed how hurry/extend mechanics work, so keep that in mind as well
         self.phase_end = datetime.now() + timedelta(seconds=(300 if self.phase_name == 'day' else 120))
 
         if (self.phase + len(self.users)) % 2:
-            if self.phase <= 0:
-                # TODO: a random non-yandere player possibly dies (1/6 chance?) at the very beginning of the game, if we have a sufficient number of players...
-                pass
-            elif target is None:
-                messages.append((self.channel, f"you abstain from killing anyone."))
-            elif target is not None:
-                target.is_alive = False
-                messages.append((self.channel, f"you lynch {target.nick} and it turns out they were{'' if target.role.is_yandere else ' NOT'} a yandere!"))
-
-            # TODO: random alignment changes (1/6 chance in either direction) and possibly becoming yanderes (i.e. double evil) in the process?
-
             messages.append((self.channel, "{} NIGHT of day {}. there {} {} {}. please PM/notice {} with any night-time commands you may have, or with 'abstain' to abstain.".format(
                 "welcome to opendere. this game starts on the" if self.phase <= 0 else "dusk sets on the",
                 self.day_num,
@@ -236,19 +223,7 @@ class Game:
                 'yandere' if self.num_yanderes_alive == 1 else 'yanderes',
                 self.bot,
             )))
-
         else:
-            if self.phase <= 0:
-                # TODO: a random non-yandere player possibly dies (1/6 chance?) at the very beginning of the game, if we have a sufficient number of players...
-                pass
-            else:
-                # TODO: night-time hiding and guarding goes here
-                # TODO: night-time killings go here
-                if target is not None and not target.is_hidden:
-                    target.is_alive = False
-                    messages.append((self.channel, f"{target.nick} was found brutually murdered! who could've done this {self.random_emoji}"))
-                # TODO: spying/checking/witnessing goes here
-                # TODO: reset hiding/guarding
             if self.phase <= 0:
                 pass
             elif not messages:
@@ -268,10 +243,9 @@ class Game:
 
         # set things up for the next phase
         self.hurries = list()
-        self.votes = dict()
         self.phase_actions = list()
 
-        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values()])}. {self.time_left} seconds left before, hopefully, one of them dies {self.random_emoji}"))
+        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values() if user.is_alive])}. {self.phase_seconds_left} seconds left before, hopefully, one of them dies {self.random_emoji}"))
 
         return messages
 
@@ -292,18 +266,18 @@ class Game:
 
         if not self.users:
             self.phase_end = datetime.now() + timedelta(seconds=60)
-            messages.append((self.channel, f"an opendere game is starting in {self.channel} in {self.time_left} seconds! please type !opendere to join!"))
+            messages.append((self.channel, f"an opendere game is starting in {self.channel} in {self.phase_seconds_left} seconds! please type !opendere to join!"))
 
         if uid in self.users:
             if self.phase is None:
-                messages.append((uid, f"you're already in the current game, which is starting in {self.time_left} seconds."))
+                messages.append((uid, f"you're already in the current game, which is starting in {self.phase_seconds_left} seconds."))
             else:
                 messages.append((uid, f"you're already playing in the current game."))
 
         elif uid not in self.users:
             if self.phase is None:
                 self.users[uid] = User(uid, nick)
-                messages.append((uid, f"you've joined the current game, which is starting in {self.time_left} seconds."))
+                messages.append((uid, f"you've joined the current game, which is starting in {self.phase_seconds_left} seconds."))
 
             # allow a player to join the game late if it's the very first phase of the game
             elif self.allow_late and self.phase == 0:
@@ -318,7 +292,7 @@ class Game:
         return messages
 
     def tick(self):
-        if self.time_left <= 0:
+        if self.phase_seconds_left <= 0:
             return self._phase_change()
 
     def user_action(self, uid, action, channel=None):
@@ -331,7 +305,7 @@ class Game:
         action = action.lstrip(self.prefix).lstrip('opendere').lstrip(self.name).split(maxsplit=1)
 
         for ability in self.users[uid].role.abilities:
-            # maybe change ability.name to a list, so we can use that as a list of command aliases?
+            # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
             if action[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
                 continue
             elif channel and not ability.command_public:
@@ -339,13 +313,13 @@ class Game:
             elif ability.command_public and not channel:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
             else:
-                if action[1] in ['a', 'u', 'abstain', 'undecided']:
+                if action[1] in ['abstain', 'undecided']:
                     target = action[1]
                 else:
                     target = self.get_user(action[1])
-                if target is None:
+                if target is None or target == self.users[uid]:
                     return [(uid, f"invalid target '{action[1]}' for command {action[0]}. please try again.")]
-                return ability(self, self.get_user(uid), target)
+                return ability(self, self.users[uid], target)
 
     def reset(self):
         self.__init__(channel=None, bot=None, name=None)
@@ -353,7 +327,7 @@ class Game:
     def user_extend(self, uid):
         """
         give people more time, or, secretly let people join the game late :D
-        before the game starts, this increases the time to 60 seconds, or time_left + 30 seconds, whichever is _less, every time it's called
+        before the game starts, this increases the time to 60 seconds, or phase_seconds_left + 30 seconds, whichever is _less, every time it's called
         during the game, this increases the time in the phase by a percentage, but will need to be adjusted to scale to the number of players
         """
         messages = list()
@@ -368,8 +342,8 @@ class Game:
             self.allow_late = True
 
         if self.phase is None:
-            if self.time_left < 30:
-                self.phase_end = datetime.now() + timedelta(seconds=(self.time_left + 30))
+            if self.phase_seconds_left < 30:
+                self.phase_end = datetime.now() + timedelta(seconds=(self.phase_seconds_left + 30))
             else:
                 self.phase_end = datetime.now() + timedelta(seconds=60)
         else:
@@ -377,7 +351,7 @@ class Game:
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
 
         messages.append((self.channel, "players have {} seconds before the {}".format(
-            self.time_left,
+            self.phase_seconds_left,
             "game starts." if self.phase is None else f"{self.phase_name} ends."
         )))
         return messages
@@ -399,27 +373,9 @@ class Game:
 
         self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
         self.hurries.append(uid)
-        messages.append((self.channel, f"tick-tock! players have {self.time_left} seconds before the {self.phase_name} ends!"))
+        messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!"))
 
         return messages
 
-    def tally_votes(self):
-        # TODO: probably can be moved to VoteKillAction
-        counts = sorted({vote: list(self.votes.values()).count(vote) for vote in set(self.votes.values())}.items(), key=lambda x: x[1], reverse=True)
-        # no one voted
-        if not counts:
-            return None
-        # only one person was voted for
-        elif len(counts) == 1:
-            return counts[0][0]
-        # one person has the most votes
-        elif counts[0][1] > counts[1][1]:
-            return counts[0][0]
-        # otherwise, at night, the first yandere to vote for someone (i.e. not abstain) wins
-        elif self.phase_name == 'night':
-            for target in iter(self.votes.values()):
-                if target is not None:
-                    return target
-            return None
-        # otherwise, everyone survives
-        return None
+    def end_phase(self):
+        self.phase_end = datetime.now() + timedelta(seconds=-1)

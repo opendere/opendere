@@ -24,12 +24,14 @@ class Ability:
         self.phases = phases
         self.command_public = command_public
 
-    def __call__(self, apply_immediately, game, user, target_user=None):
+    def __call__(self, game, user, target_user=None):
         action_obj = self.action(game, user, target_user)
-        if apply_immediately:
-            action_obj()
-        else:
+        # TODO: replace below with: game.phase_actions.insert(0 if self.has_priority else len(game.phase_actions), action_obj)
+        # because fuck action_priority, and only a handful of actions actually need priority, so...
+        if self.is_exclusively_phase_action:
             game.phase_actions.append(action_obj)
+        else:
+            return action_obj()
 
     @property
     def description(self):
@@ -86,7 +88,7 @@ class CheckAbility(Ability):
     action_description = 'inspect another player\'s alignment'
     command = 'check <user>'
     is_exclusively_phase_action = True
-    #action = CheckAction
+    # action = CheckAction
 
 
 class GuardAbility(Ability):
@@ -114,54 +116,5 @@ class VoteKillAbility(Ability):
     name = 'vote'
     action_description = 'vote with others to kill'
     command = 'vote <user>'
-    is_exclusively_phase_action = True
+    is_exclusively_phase_action = False
     action = action.VoteToKillAction
-
-    """
-    # TODO: this should be moved to VoteKillAction and other handlers
-    # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
-
-    def __call__(self, game, user, target):
-
-        messages = list()
-        # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
-        reply_to = game.channel if game.phase == 'day' else user.uid
-
-        if target in ['u', 'unvote', 'undecide', 'undecided']:
-            if user not in game.votes:
-                messages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
-            else:
-                prev = game.votes.pop(user)
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to undecided. {game.list_votes}"))
-
-        elif target in ['a', 'abstain']:
-            if user not in game.votes:
-                game.votes[user] = None
-                messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
-            elif game.votes[user] is None:
-                messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
-            elif game.votes[user] is not None:
-                prev, game.votes[user] = game.votes.pop(user), None
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick} to abstain. {game.list_votes}"))
-
-        elif target is not None and user != target:
-            if user not in game.votes:
-                game.votes[user] = target
-                messages.append((reply_to, f"{user.nick} has voted for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] == target:
-                messages.append((reply_to, f"{user.nick}: you're already voting for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] != target:
-                prev, game.votes[user] = game.votes.pop(user), target
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to {target.nick}. {game.list_votes}"))
-
-        else:
-            # should only ever get here if one votes for themselves
-            messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
-
-        # if everyone has voted, we can change the phase after this
-        # these numbers can be increased to give people some grace time to change their votes, or for dramatic effect...
-        if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
-            game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
-
-        return messages
-    """

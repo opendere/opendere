@@ -1,4 +1,5 @@
 from collections import defaultdict
+from opendere import game
 
 
 """
@@ -42,31 +43,97 @@ class Action:
 class KillAction(Action):
     def __call__(self):
         # kill the target
+        # TODO: the game should immediately end if all the yanderes are dead
         self.target_user.is_alive = False
-        return []
+        return [(self.game.channel, f"{self.target_user.nick} was brutally murdered! who could've done this {self.game.random_emoji}")]
 
 
 class VoteToKillAction(Action):
     def __call__(self):
+        messages = list()
+
+        reply_to = [self.game.channel] if self.game.phase_name == 'day' \
+            else [user.uid for user in self.game.users.values() if user.role.is_yandere]
+
         # at the end of the phase, the first VoteToKillAction handles this logic for all
         # instances of this action then deletes all instances of VoteToKillAction
-        vote_counts = defaultdict(int)
-        for action in self.actions_of_my_type:
-            vote_counts[action.target_user] += 1
-        most_voted_user = max(vote_counts, key=vote_counts.get)
-        # TODO: need logic to handle case whether there is a tie for most-voted
+        if self.game.phase_seconds_left <= 0:
+            # this should only proc if we're at the end of the phase :X
+            vote_counts = defaultdict(int)
+            for action in self.actions_of_my_type:
+                vote_counts[action.target_user] += 1
+            vote_counts = sorted(vote_counts.items(), key=lambda x: x[1], reverse=True)
+            if not vote_counts:
+                most_voted_user = None
+            elif len(vote_counts) == 1 or vote_counts[0][1] > vote_counts[1][1]:
+                most_voted_user = vote_counts[0][0]
+            elif self.game.phase_name == 'night':
+                # at night, with ties, the first yandere to vote for someone other than abstain decides
+                most_voted_user = next((target for target, _ in votes if type(target) != str), None)
+            else:
+                most_voted_user = None
 
-        # TODO: "abstain" is bad, it should probably be a constant
-        if most_voted_user == "abstain":
-            return []  # TODO: message something about failing to lynch
+            # ensure VoteToKillAction isn't processed twice
+            self.del_actions_of_type(type(self))
+
+            if type(most_voted_user) == game.User:
+                # a return message is unnecessary imo because the kill action should handle that imo
+                # should we have the person executing the killaction be a yandere if it's night?
+                self.game.phase_actions.append(
+                    KillAction(self.game, None if self.game.phase_name == 'day' else self.user, most_voted_user)
+                )
+
+            else:
+                return [(self.game.channel, "...it seems everyone survived the night. it is a brand new day :D") \
+                    if self.game.phase_name == 'night' \
+                    else (self.game.channel, "you abstain from killing anyone. you should pray that was the right decision...")]
+
+        # if we're not at the end of the phase, then we need to display who was voted for
+        # and then put the vote into phase_actions queue for counting at the end of the phase
         else:
-            self.game.phase_actions.append(
-                KillAction(self.game, None, most_voted_user)
-            )
-            return []  # TODO: some message about who was voted to be lynched
+            previous_vote = next((action for action in self.actions_of_my_type if action != self and action.user == self.user), None)
 
-        # ensure VoteToKillAction isn't processed twice
-        self.del_actions_of_type(type(self))
+            # player hasn't voted yet
+            if not previous_vote and type(self.target_user) == game.User:
+                messages += [(uid, f"{self.user.nick} has voted for {self.target_user.nick}") for uid in reply_to]
+
+            # TODO: "abstain" is bad, it should probably be a constant
+            elif not previous_vote and self.target_user == 'abstain':
+                messages += [(uid, f"{self.user.nick} has abstained from voting") for uid in reply_to]
+
+            # TODO: ditto for 'undecided'
+            elif not previous_vote and self.target_user == 'undecided':
+                return [(self.user.uid, "you were already undecided and are still undecided >:(")]
+
+            # if the player hasn't actually changed their vote at all
+            elif previous_vote.target_user == self.target_user:
+                return [(self.user.uid, "you've already {}".format(
+                    f"voted for {self.target_user.nick}" if type(previous_vote.target_user) == game.User else 'abstained'
+                ))]
+
+            # if the player has changed their vote from something to anything else
+            else:
+                messages += [(uid, "{} has changed their vote from {} to {}".format(
+                    self.user.nick,
+                    previous_vote.target_user.nick if type(previous_vote.target_user) == game.User else previous_vote.target_user,
+                    self.target_user.nick if type(self.target_user) == game.User else self.target_user)
+                ) for uid in reply_to]
+
+            # modify the previous vote if one exists
+            if previous_vote and self.target_user == 'undecided':
+                self.game.phase_actions.remove(previous_vote)
+            elif previous_vote:
+                previous_vote.target_user = self.target_user
+
+            # otherwise stick it in the queue
+            else:
+                self.game.phase_actions.append(VoteToKillAction(self.game, self.user, self.target_user))
+
+            # immediately end the phase if voting is completed
+            if len(self.actions_of_my_type) >= self.game.num_players_alive:
+                self.game.end_phase()
+
+            return messages
 
 
 class UnstoppableKillAction(Action):
@@ -92,19 +159,10 @@ class GuardAction(Action):
 class HideAction(Action):
     is_legal_during_day = False
     def __call__(self):
-        # eliminate any actions that kill self.user
+        # FIXME: need to rewrite this, hide action shouldn't be *deleting* actions
+        # because they should still be observeable by a witness...
         self.game.phase_actions = [
             action for action in self.game.phase_actions
             if not (isinstance(action, KillAction) and action.target_user == self.user)
         ]
-        return []
-
-
-# determines the order in which actions are evaluated. Many actions override other actions.
-action_priority = [
-    VoteToKillAction,
-    GuardAction,
-    HideAction,
-    KillAction,
-    UnstoppableKillAction,
-]
+        return [(self.user.uid, "you're hiding from the scary yanderes :D")]
