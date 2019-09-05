@@ -89,7 +89,7 @@ class CheckAbility(Ability):
     action_description = 'inspect another player\'s alignment'
     command = 'check <user>'
     is_exclusively_phase_action = True
-    # action = CheckAction
+    #action = CheckAction
 
 
 class GuardAbility(Ability):
@@ -117,5 +117,5 @@ class VoteKillAbility(Ability):
     name = 'vote'
     action_description = 'vote with others to kill'
     command = 'vote <user>'
-    is_exclusively_phase_action = True 
+    is_exclusively_phase_action = True
     action = action.VoteToKillAction

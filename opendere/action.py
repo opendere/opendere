@@ -50,7 +50,7 @@ class KillAction(Action):
                 f"{self.target_user.nick} was lynched, and it turns out they were{'' if self.target_user.role.is_yandere else ' NOT'} a yandere!")]
         else:
             return [(self.game.channel, f"{self.target_user.nick} was brutally murdered! who could've done this {self.game.random_emoji}")]
-            
+
 
 class VoteToKillAction(Action):
     def __init__(self, game, user, target_user):
@@ -97,7 +97,7 @@ class VoteToKillAction(Action):
 
         # tally the votes here
         vote_tally = "current_votes are: "
-        for target in set([ 
+        for target in set([
                 action.target_user for action in self.actions_of_my_type
                 if action.target_user is not None and type(action.target_user) != str
             ]):
@@ -138,7 +138,7 @@ class VoteToKillAction(Action):
         # at night, with ties, the first yandere to vote for someone other than abstain decides
         elif self.game.phase_name == 'night':
             most_voted_user = next((
-                action.target_user for action in self.actions_of_my_type 
+                action.target_user for action in self.actions_of_my_type
                 if type(action.target_user) != str and (action.target_user in [ vote_counts[0][0], vote_counts[1][0] ])
             ), None)
 
