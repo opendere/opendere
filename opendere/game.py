@@ -57,6 +57,7 @@ class Game:
         self.phase_end = None
         self.hurries = []
         self.phase_actions = []
+        self.messages = []
 
     @staticmethod
     def _select_roles(num_users):
@@ -176,16 +177,15 @@ class Game:
         pass
 
     def _process_phase_actions(self):
-        # man, fuck action_priority libbies
+        # man, fuck action_priority - libbies
         messages = list()
-        # FIXME: completed_actions will probably need to move elsewhere
+        # TODO: completed_actions will probably need to move elsewhere
         completed_actions = list()
 
         while self.phase_actions:
-            action = self.phase_actions[0]
+            action = self.phase_actions.pop(0)
             messages += action()
-            if self.phase_actions[0] == action:
-                completed_actions.append(self.phase_actions.pop(0))
+            completed_actions.append(action)
         return messages
 
     def _phase_change(self):
@@ -292,6 +292,9 @@ class Game:
         return messages
 
     def tick(self):
+        if self.messages:
+            messages, self.messages = list(self.messages), list()
+            return messages
         if self.phase_seconds_left <= 0:
             return self._phase_change()
 

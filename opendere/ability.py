@@ -30,6 +30,7 @@ class Ability:
         # because fuck action_priority, and only a handful of actions actually need priority, so...
         if self.is_exclusively_phase_action:
             game.phase_actions.append(action_obj)
+            return action_obj.messages
         else:
             return action_obj()
 
@@ -116,5 +117,5 @@ class VoteKillAbility(Ability):
     name = 'vote'
     action_description = 'vote with others to kill'
     command = 'vote <user>'
-    is_exclusively_phase_action = False
+    is_exclusively_phase_action = True 
     action = action.VoteToKillAction
