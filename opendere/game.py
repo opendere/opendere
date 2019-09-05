@@ -57,7 +57,6 @@ class Game:
         self.phase_end = None
         self.hurries = []
         self.phase_actions = []
-        self.messages = []
 
     @staticmethod
     def _select_roles(num_users):
@@ -292,9 +291,6 @@ class Game:
         return messages
 
     def tick(self):
-        if self.messages:
-            messages, self.messages = list(self.messages), list()
-            return messages
         if self.phase_seconds_left <= 0:
             return self._phase_change()
 

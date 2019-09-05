@@ -46,8 +46,17 @@ class KillAction(Action):
         # TODO: the game should immediately end if all the yanderes are dead
         self.target_user.is_alive = False
         if self.game.phase_name == 'day':
-            return [(self.game.channel,
-                f"{self.target_user.nick} was lynched, and it turns out they were{'' if self.target_user.role.is_yandere else ' NOT'} a yandere!")]
+            if self.user is not None:
+                return [(self.game.channel, "{} runs {} through with a katana, and it turns out they were{}a yandere!".format(
+                    self.user.nick,
+                    self.target_user.nick,
+                    ' ' if self.target_user.role.is_yandere else ' NOT '
+                ))]
+            else:
+                return [(self.game.channel, "{} was lynched, and it turns out they were{}a yandere!".format(
+                    self.target_user.nick,
+                    ' ' if self.target_user.role.is_yandere else ' NOT '
+                ))]
         else:
             return [(self.game.channel, f"{self.target_user.nick} was brutally murdered! who could've done this {self.game.random_emoji}")]
 
@@ -126,15 +135,11 @@ class VoteToKillAction(Action):
         vote_counts = defaultdict(int)
         for action in self.actions_of_my_type:
             vote_counts[action.target_user] += 1
-
         vote_counts = sorted(vote_counts.items(), key=lambda x: x[1], reverse=True)
-
-
         most_voted_user = None
 
         if len(vote_counts) == 1 or vote_counts[0][1] > vote_counts[1][1]:
             most_voted_user = vote_counts[0][0]
-
         # at night, with ties, the first yandere to vote for someone other than abstain decides
         elif self.game.phase_name == 'night':
             most_voted_user = next((
@@ -142,7 +147,7 @@ class VoteToKillAction(Action):
                 if type(action.target_user) != str and (action.target_user in [ vote_counts[0][0], vote_counts[1][0] ])
             ), None)
 
-        # also at at nigth, the first yandere to vote that person is the person who does the killing
+        # also at at night, the first yandere to vote for the target is the person who does the killing
         if self.game.phase_name == 'night':
             killer = next((action.user for action in self.actions_of_my_type if action.target_user == most_voted_user), None)
 
