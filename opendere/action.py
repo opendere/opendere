@@ -1,5 +1,5 @@
 from collections import defaultdict
-
+import opendere.game
 
 """
 Pattern:
@@ -79,7 +79,7 @@ class VoteToKillAction(Action):
         previous_vote = next((action for action in self.actions_of_my_type if action != self and action.user == self.user), None)
 
         # player hasn't voted yet
-        if not previous_vote and isinstance(self.target_user, type(self.user)):
+        if not previous_vote and isinstance(self.target_user, opendere.game.User):
             self.messages += [(uid, f"{self.user.nick} has voted for {self.target_user.nick}") for uid in reply_to]
 
         # TODO: "abstain" is bad, it should probably be a constant
@@ -103,8 +103,8 @@ class VoteToKillAction(Action):
         else:
             self.messages += [(uid, "{} has changed their vote from {} to {}".format(
                 self.user.nick,
-                previous_vote.target_user.nick if isinstance(previous_vote.target_user, type(self.user)) else previous_vote.target_user,
-                self.target_user.nick if isinstance(self.target_user, type(self.user)) else self.target_user
+                previous_vote.target_user.nick if isinstance(previous_vote.target_user, opendere.game.User) else previous_vote.target_user,
+                self.target_user.nick if isinstance(self.target_user, opendere.game.User) else self.target_user
             )) for uid in reply_to]
             # invalidate the previous vote here, so that there aren't two votes from the player
             previous_vote.user, previous_vote.target_user = None, None
@@ -114,7 +114,7 @@ class VoteToKillAction(Action):
 
         # tally the votes here
         vote_tally = "current_votes are: "
-        for target in {action.target_user for action in self.actions_of_my_type if isinstance(action.target_user, type(self.user))}:
+        for target in {action.target_user for action in self.actions_of_my_type if isinstance(action.target_user, opendere.game.User)}:
             vote_tally += f"{target.nick}: {len([action for action in self.actions_of_my_type if action.target_user == target])}, "
         vote_tally += f"abstain: {len([action for action in self.actions_of_my_type if action.target_user == 'abstain'])}, "
         if self.game.phase_name == 'day':
@@ -144,7 +144,7 @@ class VoteToKillAction(Action):
         elif self.game.phase_name == 'night':
             most_voted_user = next((
                 action.target_user for action in self.actions_of_my_type
-                if isinstance(action.target_user, type(self.user)) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
+                if isinstance(action.target_user, opendere.game.User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
             ), None)
 
         # also at at night, the first yandere to vote for the target is the person who does the killing
