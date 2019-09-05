@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from numpy import random
-from opendere import roles, action
+from opendere import roles
 
 
 class InsufficientPlayersError(ValueError):
@@ -154,18 +154,6 @@ class Game:
         # rounded off to 1 decimal point for now, but should probably be completely removed later
         return round((self.phase_end - datetime.now()).total_seconds(), 1)
 
-    @property
-    def list_votes(self) -> str:
-        """
-        a list of votes and count of each
-        """
-        votes = "current votes are: "
-        for vote in {vote for vote in self.votes.values() if vote}:
-            votes += f"{vote.nick}: {[vote for vote in self.votes.values()].count(vote)}, "
-        votes += f"abstained: {list(self.votes.values()).count(None)}, "
-        votes += f"undecided: {(self.num_players_alive if self.phase_name == 'day' else self.num_yandere_killers) - len(self.votes)}"
-        return votes
-
     def _nick_change(self, uid, new_uid, nick, new_nick):
         """
         handle nickname changes
@@ -183,7 +171,8 @@ class Game:
 
         while self.phase_actions:
             action = self.phase_actions.pop(0)
-            messages += action()
+            if action.user or action.target_user:
+                messages += action()
             completed_actions.append(action)
         return messages
 
@@ -198,10 +187,10 @@ class Game:
             if len(self.users) <= 3:
                 raise InsufficientPlayersError
 
-            roles = self._select_roles(len(self.users))
-            random.shuffle(roles)
+            player_roles = self._select_roles(len(self.users))
+            random.shuffle(player_roles)
             for i, user in enumerate(self.users.values()):
-                user.role = roles[i]
+                user.role = player_roles[i]
                 messages.append((user.uid, f"you're a {user.role.name}. {user.role.description}"))
             self.phase = 0
         else:
@@ -378,3 +367,7 @@ class Game:
 
     def end_phase(self):
         self.phase_end = datetime.now() + timedelta(seconds=-1)
+
+    def end_game(self):
+        # TODO: end the game
+        return []
