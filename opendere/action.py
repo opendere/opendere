@@ -44,7 +44,7 @@ class KillAction(Action):
     def __call__(self):
         # kill the target
         if isinstance(self, UnstoppableKillAction) or not next((
-                action for action in self.game.completed_actions
+                action for action in self.game.phase_actions + self.game.completed_actions
                 if (isinstance(action, HideAction) and action.user == self.target_user)
                 or (isinstance(action, GuardAction) and action.target_user == self.target_user)
             ), None):
