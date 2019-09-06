@@ -14,10 +14,11 @@ Pattern:
 
 
 class Action:
-    def __init__(self, game, user, target_user):
+    def __init__(self, game, user, target_user, previous_target=None):
         self.game = game
         self.user = user
         self.target_user = target_user
+        self.previous_target = previous_target
         self.messages = []
 
     def __call__(self):
@@ -52,9 +53,6 @@ class KillAction(Action):
         else:
             return [] 
 
-        if isinstance(self, UnstoppableKillAction):
-            self.target_user.is_alive = False
-
         if self.game.phase_name == 'night':
             return [(self.game.channel, f"{self.target_user.nick} was brutally murdered! who could've done this {self.game.random_emoji}")]
 
@@ -73,33 +71,24 @@ class KillAction(Action):
 
 
 class VoteToKillAction(Action):
-    def __init__(self, game, user, target_user):
-        self.game, self.user, self.target_user, self.messages = game, user, target_user, list()
+    def __init__(self, game, user, target_user, previous_vote=None):
+        self.game, self.user, self.target_user, self.previous_vote, self.messages = game, user, target_user, previous_vote, list()
+        if not self.previous_vote:
+            self.previous_vote = Action(None, None, 'undecided')
 
         if self.game.phase_name == 'day':
             reply_to = [self.game.channel]
         else:
-            reply_to = [user.uid for user in self.game.users.values() if user.role.is_yandere]
+            reply_to = [user.uid for user in self.game.users.values() if user.role.is_yandere and user.is_alive]
 
-        previous_vote = next((act for act in self.actions_of_my_type if act != self and act.user == self.user and act.target_user != None),
-            Action(game=self.game, user=self.user, target_user='undecided'))
+        self.messages += [(uid, "{} has changed their vote from {} to {}".format(
+            self.user.nick,
+            self.previous_vote.target_user.nick if isinstance(self.previous_vote.target_user, opendere.game.User) else self.previous_vote.target_user,
+            self.target_user.nick if isinstance(self.target_user, opendere.game.User) else self.target_user
+        )) for uid in reply_to]
 
-        if previous_vote.target_user == self.target_user:
-            self.messages += [(self.game.channel, f"{self.user.nick}: your vote is still the same as before >:(")]
-            # since the player's vote didn't actually change, to preserve order, we invalidate the new vote
+        if self.target_user == 'undecided':
             self.target_user = None
-
-        else:
-            self.messages += [(uid, "{} has changed their vote from {} to {}".format(
-                self.user.nick,
-                previous_vote.target_user.nick if isinstance(previous_vote.target_user, opendere.game.User) else previous_vote.target_user,
-                self.target_user.nick if isinstance(self.target_user, opendere.game.User) else self.target_user
-            )) for uid in reply_to]
-
-            if previous_vote in self.game.phase_actions:
-                self.game.phase_actions.remove(previous_vote)
-            if self.target_user == 'undecided':
-                self.target_user = None
 
         # tally the votes here
         vote_tally = "current_votes are: "
@@ -159,9 +148,12 @@ class UnstoppableKillAction(Action):
 
 
 class GuardAction(Action):
-    def __init__(self, game, user, target_user):
-        self.game, self.user, self.target_user = game, user, target_user
-        self.messages = [(self.user.uid, f"you're guarding {target_user.nick} from the scary yanderes <3")]
+    def __init__(self, game, user, target_user, previous_target=None):
+        self.game, self.user, self.target_user, self.previous_target = game, user, target_user, previous_target
+        if self.previous_target:
+            self.messages = [(self.user.uid, f"you're changed from guarding {previous_target.nick} to guarding {target_user.nick} instead <3")]
+        else:
+            self.messages = [(self.user.uid, f"you're guarding {target_user.nick} from the scary yanderes <3")]
 
     def __call__(self):
         # i don't think user should be target_user bc of witnesses...
@@ -171,8 +163,8 @@ class GuardAction(Action):
 
 
 class HideAction(Action):
-    def __init__(self, game, user, target_user=None):
-        self.game, self.user, self.target_user = game, user, target_user
+    def __init__(self, game, user, target_user=None, previous_target=None):
+        self.game, self.user, self.target_user, previous_target = game, user, target_user, previous_target
         self.messages = [(self.user.uid, "you're hiding from the scary yanderes :D")]
 
     def __call__(self):

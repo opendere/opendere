@@ -25,17 +25,21 @@ class Ability:
         self.command_public = command_public
 
     def __call__(self, game, user, target_user=None):
-        action_obj = self.action(game, user, target_user)
+        previous_action = next((act for act in game.phase_actions if isinstance(act, type(self)) and user == act.user), None)
+        if previous_action and previous_action.target_user == self.target_user:
+            return [(game.channel if self.command_public else user.uid, f"{user.nick}: you've already told me you were going to do that, baka ;_;")]
+
+        if previous_action:
+            game.phase_actions.remove(previous_action)
+            action_obj = self.action(game, user, target_user, previous_action)
+        else:
+            self.num_uses -= 1
+            action_obj = self.action(game, user, target_user) 
+
         if self.is_exclusively_phase_action or game.phase_name == 'night':
-            previous_action = next((act for act in game.phase_actions if isinstance(act, type(self)) and user == act.user), None) 
-            if previous_action:
-                game.phase_actions.remove(previous_action)
-            else:
-                self.num_uses -= 1
             game.phase_actions.append(action_obj)
             return action_obj.messages
         else:
-            self.num_uses -= 1
             game.completed_actions.append(action_obj)
             return action_obj()
 
