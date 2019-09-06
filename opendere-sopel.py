@@ -25,9 +25,10 @@ def tick(bot):
     """
     tick down the timer for game state, i.e. the start timer or hurry timer
     """
-    for channel in bot.channels:
-        if channel not in bot.memory['games']:
-            continue
+    for channel in bot.memory['games']:
+        # if the game has ended or been reset
+        if bot.memory['games'][channel].channel is None:
+            del bot.memory['games'][channel]
 
         try:
             messages = bot.memory['games'][channel].tick()
@@ -44,10 +45,6 @@ def tick(bot):
                 bot.say(bold(text), recipient)
             else:
                 bot.notice(text, recipient.split('!')[0])
-
-        # if the game has ended or been reset
-        if bot.memory['games'][channel].channel is None:
-            del bot.memory['games'][channel]
 
 @rule(f"^{command_prefix}(e$|end|r$|reset|restart)")
 @example('!end - end/reset the current game')
@@ -150,7 +147,3 @@ def actions(bot, trigger):
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
-
-    # if the game has ended or been reset
-    if bot.memory['games'][trigger.sender].channel is None:
-        del bot.memory['games'][trigger.sender]

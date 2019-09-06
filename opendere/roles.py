@@ -100,7 +100,7 @@ class Warrior(Role):
 
 
 class Samurai(Role):
-    name = 'ronin'
+    name = 'samurai'
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from numpy import random
 from opendere import roles
+from collections import defaultdict
 
 
 class InsufficientPlayersError(ValueError):
@@ -29,7 +30,6 @@ class User:
         self.role = None
         self.alignment = None
         self.is_alive = True
-        self.is_hidden = False
 
 
 class Game:
@@ -57,6 +57,7 @@ class Game:
         self.phase_end = None
         self.hurries = []
         self.phase_actions = []
+        self.completed_actions = []
 
     @staticmethod
     def _select_roles(num_users):
@@ -171,9 +172,24 @@ class Game:
 
         while self.phase_actions:
             action = self.phase_actions.pop(0)
-            if action.user or action.target_user:
-                messages += action()
-            completed_actions.append(action)
+            messages += action()
+            self.completed_actions.append(action)
+        return messages
+
+    def _check_game_end(self):
+        if self.num_yanderes_alive == 0:
+            messages = [(self.channel, "congrats! the last yandere has been defeated!")]
+        elif self.num_yanderes_alive >= self.num_players_alive:
+            messages = [(self.channel, f"game over! the yandere{'s have' if self.num_yanderes > 1 else ' has'} won!")]
+        else:
+            return []
+        messages += [(self.channel, "survivors are: {}".format(
+            ', '.join([f"{user.nick} ({user.role.name})" for user in self.users.values() if user.is_alive])
+        ))]
+        messages += [(self.channel, "deceased are: {}".format(
+            ', '.join([f"{user.nick} ({user.role.name})" for user in self.users.values() if not user.is_alive])
+        ))]
+        self.channel, self.users = None, []
         return messages
 
     def _phase_change(self):
@@ -191,12 +207,15 @@ class Game:
             random.shuffle(player_roles)
             for i, user in enumerate(self.users.values()):
                 user.role = player_roles[i]
-                messages.append((user.uid, f"you're a {user.role.name}. {user.role.description}"))
+                messages += [(user.uid, f"you're a {user.role.name}. {user.role.description}")]
             self.phase = 0
         else:
-            messages += self._process_phase_actions()
+            messages += list(set(self._process_phase_actions()))
+            random.shuffle(messages)
+            messages += self._check_game_end()
+            if not self.channel:
+                return messages
             self.phase += 1
-        random.shuffle(messages)
 
         # these numbers will probably need tweaking. i'm hoping for a much faster paced game than vanilla yandere
         # i've also changed how hurry/extend mechanics work, so keep that in mind as well
@@ -214,13 +233,11 @@ class Game:
         else:
             if self.phase <= 0:
                 pass
-            elif not messages:
-                messages.append((self.channel, f"...it seems everyone survived the night. it is a brand new day :D"))
-            else:
+            elif messages:
                 random.shuffle(messages)
                 messages.insert(0, (self.channel, f"morning comes with the stench of death."))
 
-            messages.append((self.channel, "{} DAY {}. there {} {} {}. discuss who to accuse of being a yandere and viciously murder before they kill you first {}".format(
+            messages.append((self.channel, "{} DAY {}. there {} {} {}. discuss whom to viciously murder before they kill you first {}".format(
                 "welcome to opendere. this game starts on" if self.phase <= 0 else "dawn rises on",
                 self.day_num,
                 'is' if self.num_yanderes_alive == 1 else 'are',
@@ -229,11 +246,10 @@ class Game:
                 self.random_emoji
             )))
 
-        # set things up for the next phase
-        self.hurries = list()
-        self.phase_actions = list()
+        # cleanup
+        self.hurries, self.phase_actions, self.completed_actions = [], [], []
 
-        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values() if user.is_alive])}. {self.phase_seconds_left} seconds left before, hopefully, one of them dies {self.random_emoji}"))
+        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values() if user.is_alive])}. {self.phase_seconds_left} seconds left before, hopefully, one of them dies before they kill you {self.random_emoji}"))
 
         return messages
 
@@ -290,27 +306,29 @@ class Game:
         if self.phase is None or (channel and not action.startswith(self.prefix)):
             return
 
-        action = action.lstrip(self.prefix).lstrip('opendere').lstrip(self.name).split(maxsplit=1)
+        act = action.lstrip(self.prefix).lstrip('opendere').lstrip(self.name).split(maxsplit=1)
 
         for ability in self.users[uid].role.abilities:
             # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
-            if action[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
+            if act[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
                 continue
             elif channel and not ability.command_public:
                 return [(uid, f"please PM/notice {self.bot} with your commands instead.")]
             elif ability.command_public and not channel:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
+            elif (ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid])) \
+                    or any(isinstance(act, ability.action) for act in self.completed_actions if act.user == self.users[uid]):
+                return [(uid, "you can't do that anymore, sorry :(")]
             else:
-                if action[1] in ['abstain', 'undecided']:
-                    target = action[1]
+                if len(act) == 1:
+                    return ability(self, self.users[uid], target_user=None)
+                elif act[1] in ['abstain', 'undecided']:
+                    target = act[1]
                 else:
-                    target = self.get_user(action[1])
-                if target is None or target == self.users[uid]:
-                    return [(uid, f"invalid target '{action[1]}' for command {action[0]}. please try again.")]
-                return ability(self, self.users[uid], target)
-
-    def reset(self):
-        self.__init__(channel=None, bot=None, name=None)
+                    target = self.get_user(act[1])
+                    if not isinstance(target, User) or target == self.users[uid]:
+                        return [(uid, f"'{action}' is invalid. please try again.")]
+                return ability(self, self.users[uid], target) + self._check_game_end()
 
     def user_extend(self, uid):
         """
@@ -365,9 +383,5 @@ class Game:
 
         return messages
 
-    def end_phase(self):
+    def end_current_phase(self):
         self.phase_end = datetime.now() + timedelta(seconds=-1)
-
-    def end_game(self):
-        # TODO: end the game
-        return []

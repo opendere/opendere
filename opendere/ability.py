@@ -26,12 +26,17 @@ class Ability:
 
     def __call__(self, game, user, target_user=None):
         action_obj = self.action(game, user, target_user)
-        # TODO: replace below with: game.phase_actions.insert(0 if self.has_priority else len(game.phase_actions), action_obj)
-        # because fuck action_priority, and only a handful of actions actually need priority, so...
-        if self.is_exclusively_phase_action:
+        if self.is_exclusively_phase_action or game.phase_name == 'night':
+            previous_action = next((act for act in game.phase_actions if isinstance(act, type(self)) and user == act.user), None) 
+            if previous_action:
+                game.phase_actions.remove(previous_action)
+            else:
+                self.num_uses -= 1
             game.phase_actions.append(action_obj)
             return action_obj.messages
         else:
+            self.num_uses -= 1
+            game.completed_actions.append(action_obj)
             return action_obj()
 
     @property
