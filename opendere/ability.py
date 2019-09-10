@@ -76,7 +76,11 @@ class RevealAbility(Ability):
     action_description = 'reveal to all other players'
     command = 'reveal'
     is_exclusively_phase_action = False
-    #action = RevealAction
+    #action = RevealAction  # TODO: make this a partial(RevealAction, self.reveal_as)
+    def __init__(self, *args, reveal_as=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # allow revealing as something else
+        self.reveal_as = reveal_as
 
 
 class SpyAbility(Ability):

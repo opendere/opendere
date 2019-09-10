@@ -215,7 +215,10 @@ def SpyAction(Action):
 def UpgradeAction(Action):
     def apply(self):
         messages = [(self.user.uid, f"you've upgraded {self.target_user.nick}, hopefully that was the right thing to do...")]
-        if self.target_user.upgrades:
-            self.target_user.role = random.choice(self.target_user.upgrades)
+        if self.role.upgrade_to.new_role_choices:
+            self.target_user.role = random.choice(self.role.upgrade_to.new_role_choices)()
             messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role.name}. {self.target_user.role.description}")]
+        else:
+            self.target_user.role.abilities += self.role.upgrade_to.add_abilities
+            # TODO: message
         return messages
