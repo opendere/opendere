@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from numpy import random
-from opendere import roles
+from opendere import roles, action
 from collections import defaultdict
 
 
@@ -16,7 +16,7 @@ def weighted_choices(choice_weight_map, num_choices):
 
 
 class User:
-    def __init__(self, uid, nick):
+    def __init__(self, game, uid, nick):
         """
         uid (str): the player's user identifier, such as nick!user@host for irc or discord's user.id
         nick (str): the player's nickname
@@ -25,6 +25,7 @@ class User:
         is_alive (bool): whether a player is dead or alive
         is_hidden (bool): whether a player is hiding from the mean and scary yanderes ;_;
         """
+        self.game = game
         self.uid = uid
         self.nick = nick
         self.role = None
@@ -237,7 +238,7 @@ class Game:
                 random.shuffle(messages)
                 messages.insert(0, (self.channel, f"morning comes with the stench of death."))
 
-            messages.append((self.channel, "{} DAY {}. there {} {} {}. discuss whom to viciously murder before they kill you first {}".format(
+            messages.append((self.channel, "{} DAY {}. there {} {} {}. discuss whom to ruthlessly lynch before they kill you {}".format(
                 "welcome to opendere. this game starts on" if self.phase <= 0 else "dawn rises on",
                 self.day_num,
                 'is' if self.num_yanderes_alive == 1 else 'are',
@@ -280,12 +281,12 @@ class Game:
 
         elif uid not in self.users:
             if self.phase is None:
-                self.users[uid] = User(uid, nick)
+                self.users[uid] = User(self, uid, nick)
                 messages.append((uid, f"you've joined the current game, which is starting in {self.phase_seconds_left} seconds."))
 
             # allow a player to join the game late if it's the very first phase of the game
             elif self.allow_late and self.phase == 0:
-                self.users[uid] = User(uid, nick)
+                self.users[uid] = User(self, uid, nick)
                 # a 1 in 6 chance of being a yandere
                 self.users[uid].role = random.choice(self._select_roles(6))
                 messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
@@ -306,7 +307,9 @@ class Game:
         if self.phase is None or (channel and not action.startswith(self.prefix)):
             return
 
-        act = action.lstrip(self.prefix).lstrip('opendere').lstrip(self.name).split(maxsplit=1)
+        act = action.lstrip(self.prefix).split(maxsplit=1)
+        if not act:
+            return []
 
         for ability in self.users[uid].role.abilities:
             # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
@@ -316,18 +319,20 @@ class Game:
                 return [(uid, f"please PM/notice {self.bot} with your commands instead.")]
             elif ability.command_public and not channel:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
-            elif (ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid])) \
-                    or any(isinstance(act, ability.action) for act in self.completed_actions if act.user == self.users[uid]):
+            elif any(isinstance(act, ability.action) for act in self.completed_actions if act.user == self.users[uid]):
                 return [(uid, "you can't do that anymore, sorry :(")]
+            elif ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid]): 
+                return [(uid, "you can't do that anymore, sorry :(")]
+            elif len(act) == 1:
+                return ability(self, self.users[uid], target_user=None)
+            elif ability.name == 'vote' and act[1] in ['abstain', 'undecided']:
+                return ability(self, self.users[uid], act[1])
+            elif act[1] in ['abstain']:
+                return user_abstain(uid, ability)
             else:
-                if len(act) == 1:
-                    return ability(self, self.users[uid], target_user=None)
-                elif act[1] in ['abstain', 'undecided']:
-                    target = act[1]
-                else:
-                    target = self.get_user(act[1])
-                    if not isinstance(target, User) or target == self.users[uid]:
-                        return [(uid, f"'{action}' is invalid. please try again.")]
+                target = self.get_user(act[1])
+                if not isinstance(target, User) or target == self.users[uid]:
+                    return [(uid, f"'{action}' is invalid. please try again.")]
                 return ability(self, self.users[uid], target) + self._check_game_end()
 
     def user_extend(self, uid):
@@ -385,3 +390,47 @@ class Game:
 
     def end_current_phase(self):
         self.phase_end = datetime.now() + timedelta(seconds=-1)
+
+    def kill_user(self, user, target_user):
+        target_user.is_alive = False
+
+        if self.phase_name == 'night':
+            return [(self.channel, f"{target_user.nick} was brutally murdered! who could've done this {self.random_emoji}")]
+
+        elif self.phase_name == 'day' and user is not None:
+            return [(self.channel, "{} runs {} through with a katana, and it turns out they were{}a yandere!".format(
+                user.nick,
+                target_user.nick,
+                ' ' if target_user.role.is_yandere else ' NOT '
+            ))]
+
+        else:
+            return [(self.channel, "{} was lynched, and it turns out they were{}a yandere!".format(
+                target_user.nick,
+                ' ' if target_user.role.is_yandere else ' NOT '
+            ))]
+
+    def is_protected(self, user):
+        for act in self.phase_actions + self.completed_actions:
+            if isinstance(act, action.HideAction) and act.user == user:
+                return True
+            if isinstance(act, action.GuardAction) and act.target_user == user:
+                return True
+        return False 
+
+    def user_abstain(self, uid, ability=None):
+        user = self.get_user(uid)
+        for act in self.phase_actions:
+            if act.user != user:
+                continue
+            elif not ability and isinstance(act, action.VoteToKillAction):
+                vote = action.VoteToKillAction(self, user, 'abstain', act) 
+                self.phase_actions.remove(act)
+                self.phase_actions.append(vote)
+                return vote.messages 
+            elif ability and isinstance(act, ability.action):
+                self.phase_actions.remove(act)
+                ability.num_uses += 1
+                return [(uid, f"you've abstained from using your ability to {ability.name}")]
+        self.phase_actions.append(action.Action(self, user, None))
+        return [(uid, f"you've abstained from using any abilities")]

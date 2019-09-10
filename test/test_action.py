@@ -26,7 +26,6 @@ def test_vote_kill():
     assert g.phase_actions == []
 
 
-# FIXME: fix this test, since libbies broke it somehow :D
 def test_hide_vote_kill():
     g = game.Game('game', None, None)
     for i in range(5):

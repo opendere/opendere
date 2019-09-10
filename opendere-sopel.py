@@ -79,7 +79,7 @@ def join_game(bot, trigger):
         else:
             bot.notice(text, recipient.split('!')[0])
 
-@rule(f"^{command_prefix}(extend)")
+@rule(f"^{command_prefix}(e$|extend)")
 @example('!extend - give more time for people to join the game')
 def extend(bot, trigger):
     if trigger.sender not in bot.memory['games']:
@@ -101,21 +101,33 @@ def hurry(bot, trigger):
         else:
             bot.notice(text, recipient.split('!')[0])
 
-# alias for 'vote abstain' and 'vote undecided'
-@rule(f"^{command_prefix}(a$|u$|abstain|unvote)")
+# alias for 'vote abstain'
+@rule(f"^{command_prefix}?(a$|abstain)")
+@example('!abstain - abstain from taking an action')
+def unvote(bot, trigger):
+    if trigger.sender not in bot.memory['games']:
+        return
+    for recipient, text in bot.memory['games'][trigger.sender].user_abstain(trigger.hostmask):
+        if recipient in bot.memory['opendere_channels']:
+            bot.say(bold(text), recipient)
+        else:
+            bot.notice(text, recipient.split('!')[0])
+
+# alias for 'vote undecided'
+@rule(f"^{command_prefix}?(u$|unvote)")
 @example('!unvote - change your vote to undecided')
 def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
-            f"vote {trigger.match.string.lstrip(command_prefix).split()[0]}",
+            "vote undecided",
             channel=trigger.sender if trigger.sender != trigger.nick else None):
         if recipient in bot.memory['opendere_channels']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
 
-@rule(f"^{command_prefix}[^$]+")
+@rule(f"^{command_prefix}?[^$]+")
 @example("!vote <target> - use an ability against a target (e.g. 'vote kitties' or 'kill kitties')")
 def actions(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg

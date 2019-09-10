@@ -13,7 +13,7 @@ class Ability:
     # that aren't even sane being done "immediately" cannot be applied, because all they do
     # is update game.phase_actions
     is_exclusively_phase_action = None
-
+    
     def __init__(self, num_uses=0, phases=[], command_public=False):
         """
         num_ability_uses (int): the number of times the ability can be used per game, usually either 0, 1 or infinity
@@ -25,8 +25,8 @@ class Ability:
         self.command_public = command_public
 
     def __call__(self, game, user, target_user=None):
-        previous_action = next((act for act in game.phase_actions if isinstance(act, type(self)) and user == act.user), None)
-        if previous_action and previous_action.target_user == self.target_user:
+        previous_action = next((act for act in game.phase_actions if isinstance(act, self.action) and user == act.user), None)
+        if previous_action and previous_action.target_user == target_user:
             return [(game.channel if self.command_public else user.uid, f"{user.nick}: you've already told me you were going to do that, baka ;_;")]
 
         if previous_action:
@@ -34,7 +34,7 @@ class Ability:
             action_obj = self.action(game, user, target_user, previous_action)
         else:
             self.num_uses -= 1
-            action_obj = self.action(game, user, target_user) 
+            action_obj = self.action(game, user, target_user)
 
         if self.is_exclusively_phase_action or game.phase_name == 'night':
             game.phase_actions.append(action_obj)
@@ -82,7 +82,7 @@ class SpyAbility(Ability):
     action_description = 'inspect another player\'s role (be careful of disguised roles which may appear as other roles!)'
     command = 'spy <user>'
     is_exclusively_phase_action = False
-    #action = SpyAction
+    action = action.SpyAction
 
 
 class StalkAbility(Ability):
@@ -90,7 +90,7 @@ class StalkAbility(Ability):
     action_description = 'learn where another player goes'
     command = 'stalk <user>'
     is_exclusively_phase_action = True
-    #action = StalkAction
+    action = action.StalkAction
 
 
 class CheckAbility(Ability):
@@ -98,7 +98,7 @@ class CheckAbility(Ability):
     action_description = 'inspect another player\'s alignment'
     command = 'check <user>'
     is_exclusively_phase_action = True
-    #action = CheckAction
+    action = action.CheckAction
 
 
 class GuardAbility(Ability):
