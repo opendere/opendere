@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from numpy import random
 from opendere import roles, action
-from collections import defaultdict
+from opendere.common import User, Alignment
 
 
 class InsufficientPlayersError(ValueError):
@@ -13,24 +13,6 @@ def weighted_choices(choice_weight_map, num_choices):
     weight_sum = sum(choice_weight_map.values())
     probabilities = [choice_weight_map[c] / weight_sum for c in choices]
     return list(random.choice(choices, (num_choices,), p=probabilities))
-
-
-class User:
-    def __init__(self, game, uid, nick):
-        """
-        uid (str): the player's user identifier, such as nick!user@host for irc or discord's user.id
-        nick (str): the player's nickname
-        role (Role): the player's role
-        alignment (Alignment): the player's alignment, potentially changed from the default
-        is_alive (bool): whether a player is dead or alive
-        is_hidden (bool): whether a player is hiding from the mean and scary yanderes ;_;
-        """
-        self.game = game
-        self.uid = uid
-        self.nick = nick
-        self.role = None
-        self.alignment = None
-        self.is_alive = True
 
 
 class Game:
@@ -77,7 +59,7 @@ class Game:
             roles.Guardian: 2, roles.Nurse: 4,
             roles.Civilian: 6, roles.Tsundere: 6
         }
-        weighted_neutral_role_classes = {r: 1 for r in roles.all_role_classes if r.default_alignment == roles.Alignment.neutral}
+        weighted_neutral_role_classes = {r: 1 for r in roles.all_role_classes if r.default_alignment == Alignment.neutral}
         weighted_good_and_neutral_role_classes = {
             **weighted_good_role_classes,
             **weighted_neutral_role_classes
@@ -146,7 +128,7 @@ class Game:
         """
         number of yanderes who can kill, i.e. not traps
         """
-        return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere for ability in user.role.abilities if ability.name == 'vote' for phase in ability.phases if phase.name == 'night'])
+        return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere for ability in user.role.abilities if ability.name == 'vote' for phase in ability.phases if phase.name == 'night'])  # TODO: this should use common.Phase
 
     @property
     def phase_seconds_left(self) -> float:
