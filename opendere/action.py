@@ -16,7 +16,7 @@ Pattern:
 
 
 class Action:
-    def __init__(self, game, user, target_user, previous_action=None):
+    def __init__(self, game, user, target_user, previous_action=None, callback=None):
         self.game = game
         self.user = user
         self.target_user = target_user
@@ -26,29 +26,29 @@ class Action:
         self._post_init_hook()
 
     def __call__(self):
+        ret = self.apply()
+        self.callback()
+        return ret
+
+    def apply(self):
         # apply the Action. Actions either update game state by changing the
         # Actions to be evaluated, or it updates the game in another way
         # returns messages resulting from the action
         raise NotImplementedError
 
     def _post_init_hook(self):
-        # TODO: this is a hack, probably should be removed
+        # TODO: this is a hack only applicable to the VoteKillAction, probably should be removed
         return
 
     def _get_init_messages(self):
         # get the messages resulting from the initialization of the action
         # by default just informs of action changes:
         if self.previous_action:
-            return [(
-                self.user.uid,
-                f"you've changed from {self.action_verb} {self.previous_action} to \
-                {self.action_verb} {self.target_user}"
-            )]
+            return [(self.user.uid,
+                     f"you've changed from {self.action_verb} {self.previous_action} to \
+                     {self.action_verb} {self.target_user}")]
         else:
-            return [(
-                self.user.uid,
-                f"you're {self.action_verb} {self.target_user}"
-            )]
+            return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
 
     @property
     def action_verb(self):
@@ -71,7 +71,7 @@ class Action:
 
 class KillAction(Action):
     action_verb = 'killing'
-    def __call__(self):
+    def apply(self):
         # kill the target
         if self.game.is_protected(self.target_user) and not isinstance(self, UnstoppableKillAction):
             return []
@@ -119,7 +119,7 @@ class VoteToKillAction(Action):
             if len({act for act in self.actions_of_my_type if act.target_user}) >= self.game.num_players_alive:
                 self.game.end_current_phase()
 
-    def __call__(self):
+    def apply(self):
         # at the end of the phase, the first VoteToKillAction handles this logic for all
         # instances of this action then deletes all instances of VoteToKillAction
         vote_counts, most_voted_user = defaultdict(int), None
@@ -157,12 +157,12 @@ class VoteToKillAction(Action):
 
 class UnstoppableKillAction(Action):
     # A kill that shouldn't be eliminated from the action list
-    __call__ = KillAction.__call__
+    apply = KillAction.apply
 
 
 class GuardAction(Action):
     action_verb = 'guarding'
-    def __call__(self):
+    def apply(self):
         if not self.target_user.role.safe_to_guard:
             self.game.phase_actions.append(UnstoppableKillAction(self.game, None, self.user))
         return []
@@ -172,13 +172,13 @@ class HideAction(Action):
     def _get_init_messages(self):
         return [(self.user.uid, "you're hiding from the scary yanderes :D")]
 
-    def __call__(self):
+    def apply(self):
         return []
 
 
 class StalkAction(Action):
     action_verb = 'stalking'
-    def __call__(self):
+    def apply(self):
         # need voting to resolve first, as a yandere might not visit the target they voted for
         # as the yandere may be voting for someone who isn't most_voted_user
         # so we delay the execution of this until all votes have been completed
@@ -196,7 +196,7 @@ class StalkAction(Action):
 
 def CheckAction(Action):
     action_verb = 'checking'
-    def __call__(self):
+    def apply(self):
         messages = list()
         if self.target_user.alignment:
             return [(self.user.uid, f"{self.target_user.nick} appears to be {self.target_user.alignment}")]
@@ -205,7 +205,7 @@ def CheckAction(Action):
 
 def SpyAction(Action):
     action_verb = 'spying on'
-    def __call__(self):
+    def apply(self):
         messages = list()
         if self.target_user.appear_as:
             return [(self.user.uid, f"{self.target_user.nick} appears to be a {self.target_user.appear_as}")]
@@ -213,7 +213,7 @@ def SpyAction(Action):
 
 
 def UpgradeAction(Action):
-    def __call__(self):
+    def apply(self):
         messages = [(self.user.uid, f"you've upgraded {self.target_user.nick}, hopefully that was the right thing to do...")]
         if self.target_user.upgrades:
             self.target_user.role = random.choice(self.target_user.upgrades)

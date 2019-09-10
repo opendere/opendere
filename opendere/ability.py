@@ -31,9 +31,8 @@ class Ability:
 
         if previous_action:
             game.phase_actions.remove(previous_action)
-            action_obj = self.action(game, user, target_user, previous_action)
+            action_obj = self.action(game, user, target_user, previous_action, callback=self._decr_num_uses)
         else:
-            self.num_uses -= 1
             action_obj = self.action(game, user, target_user)
 
         if self.is_exclusively_phase_action or game.phase_name == 'night':
@@ -42,6 +41,9 @@ class Ability:
         else:
             game.completed_actions.append(action_obj)
             return action_obj()
+
+    def _decr_num_uses(self):
+        self.num_uses -= 1
 
     @property
     def description(self):
