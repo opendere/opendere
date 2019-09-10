@@ -42,7 +42,6 @@ class Role:
             ', and can '.join([ab.description for ab in self.abilities if not ab.command_public]) or '...do nothing special. :( sorry',
             f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
-# TODO: change all classes to PARTIALS
 
 
 class Hikikomori(Role):
