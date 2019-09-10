@@ -321,7 +321,7 @@ class Game:
                 return [(uid, f"please enter that command in {self.channel} instead.")]
             elif any(isinstance(act, ability.action) for act in self.completed_actions if act.user == self.users[uid]):
                 return [(uid, "you can't do that anymore, sorry :(")]
-            elif ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid]): 
+            elif ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid]):
                 return [(uid, "you can't do that anymore, sorry :(")]
             elif len(act) == 1:
                 return ability(self, self.users[uid], target_user=None)
@@ -416,7 +416,7 @@ class Game:
                 return True
             if isinstance(act, action.GuardAction) and act.target_user == user:
                 return True
-        return False 
+        return False
 
     def user_abstain(self, uid, ability=None):
         user = self.get_user(uid)
@@ -424,10 +424,10 @@ class Game:
             if act.user != user:
                 continue
             elif not ability and isinstance(act, action.VoteToKillAction):
-                vote = action.VoteToKillAction(self, user, 'abstain', act) 
+                vote = action.VoteToKillAction(self, user, 'abstain', act)
                 self.phase_actions.remove(act)
                 self.phase_actions.append(vote)
-                return vote.messages 
+                return vote.messages
             elif ability and isinstance(act, ability.action):
                 self.phase_actions.remove(act)
                 ability.num_uses += 1

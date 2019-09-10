@@ -58,8 +58,6 @@ class VoteToKillAction(Action):
         if not self.previous_vote:
             self.previous_vote = Action(None, None, 'undecided')
 
-        
-
         if self.game.phase_name == 'day':
             reply_to = [self.game.channel]
         else:
@@ -113,7 +111,7 @@ class VoteToKillAction(Action):
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
                 for killer in (act.user for act in self.actions_of_my_type if act.target_user == most_voted_user):
-                    kill = KillAction(self.game, killer, most_voted_user) 
+                    kill = KillAction(self.game, killer, most_voted_user)
                     self.game.completed_actions.append(kill)
             else:
                 kill = KillAction(self.game, None, most_voted_user)
@@ -209,6 +207,6 @@ def UpgradeAction(Action):
     def __call__(self):
         messages = [(self.user.uid, f"you've upgraded {self.target_user.nick}, hopefully that was the right thing to do...")]
         if self.target_user.upgrades:
-            self.target_user.role = random.choice(self.target_user.upgrades)            
+            self.target_user.role = random.choice(self.target_user.upgrades)
             messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role.name}. {self.target_user.role.description}")]
         return messages

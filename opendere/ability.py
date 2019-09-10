@@ -13,7 +13,7 @@ class Ability:
     # that aren't even sane being done "immediately" cannot be applied, because all they do
     # is update game.phase_actions
     is_exclusively_phase_action = None
-    
+
     def __init__(self, num_uses=0, phases=[], command_public=False):
         """
         num_ability_uses (int): the number of times the ability can be used per game, usually either 0, 1 or infinity
