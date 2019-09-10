@@ -1,21 +1,9 @@
-from enum import Enum
 import inspect
 import math
 from numpy import random
-from datetime import datetime, timedelta
 
 from opendere import ability
-
-
-class Alignment(Enum):
-    good = 0
-    evil = 1
-    neutral = 2
-
-
-class Phase(Enum):
-    day = 0
-    night = 1
+from opendere.common import Alignment, Phase
 
 
 class Role:
