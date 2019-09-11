@@ -27,11 +27,11 @@ class Ability:
     def __call__(self, game, user, target_user=None):
         previous_action = next((act for act in game.phase_actions if isinstance(act, self.action) and user == act.user), None)
         if previous_action and previous_action.target_user == target_user:
-            return [(game.channel if self.command_public else user.uid, f"{user}: you've already told me you were going to do that, baka ;_;")]
+            return [(game.channel if self.command_public else user.uid, f"{user.nick}: you've already told me you were going to do that, baka ;_;")]
 
         if previous_action:
             game.phase_actions.remove(previous_action)
-            action_obj = self.action(game, user, target_user, previous_action, callback=self._decr_num_uses)
+            action_obj = self.action(game, user, target_user, previous_action)
         else:
             action_obj = self.action(game, user, target_user)
 
@@ -41,9 +41,6 @@ class Ability:
         else:
             game.completed_actions.append(action_obj)
             return action_obj()
-
-    def _decr_num_uses(self):
-        self.num_uses -= 1
 
     @property
     def description(self):
@@ -60,7 +57,7 @@ class UpgradeAbility(Ability):
     action_description = 'upgrade any other player'
     command = 'upgrade <user>'
     is_exclusively_phase_action = False
-    #action = UpgradeAction
+    action = action.UpgradeAction
 
 
 class HideAbility(Ability):
@@ -76,7 +73,7 @@ class RevealAbility(Ability):
     action_description = 'reveal to all other players'
     command = 'reveal'
     is_exclusively_phase_action = False
-    #action = RevealAction  # TODO: make this a partial(RevealAction, self.reveal_as)
+    action = action.RevealAction  # TODO: make this a partial(RevealAction, self.reveal_as)
     def __init__(self, *args, reveal_as=None, **kwargs):
         super().__init__(*args, **kwargs)
         # allow revealing as something else

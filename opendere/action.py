@@ -27,7 +27,8 @@ class Action:
 
     def __call__(self):
         ret = self.apply()
-        self.callback()
+        if ret and self.user:
+            self._decr_uses()
         return ret
 
     def apply(self):
@@ -43,12 +44,19 @@ class Action:
     def _get_init_messages(self):
         # get the messages resulting from the initialization of the action
         # by default just informs of action changes:
-        if self.previous_action:
+        if not self.user:
+            return []
+        elif self.previous_action:
             return [(self.user.uid,
                      f"you've changed from {self.action_verb} {self.previous_action} to \
                      {self.action_verb} {self.target_user}")]
         else:
             return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
+
+    def _decr_uses(self):
+        for ability in self.user.role.abilities:
+            if isinstance(self, ability.action):
+                ability.num_uses -= 1
 
     @property
     def action_verb(self):
@@ -136,7 +144,7 @@ class VoteToKillAction(Action):
                 if isinstance(action.target_user, User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
             ), None)
 
-        if most_voted_user and not self.game.is_protected(most_voted_user):
+        if isinstance(most_voted_user, User) and not self.game.is_protected(most_voted_user):
             if self.game.phase_name == 'night':
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
@@ -194,16 +202,15 @@ class StalkAction(Action):
         return [(self.user.uid, f"{self.target_user.nick} stayed at home last night. boring!")]
 
 
-def CheckAction(Action):
+class CheckAction(Action):
     action_verb = 'checking'
     def apply(self):
-        messages = list()
         if self.target_user.alignment:
             return [(self.user.uid, f"{self.target_user.nick} appears to be {self.target_user.alignment}")]
         return [(self.user.uid, f"{self.target_user.nick} appears to be {self.target_user.role.default_alignment.name}")]
 
 
-def SpyAction(Action):
+class SpyAction(Action):
     action_verb = 'spying on'
     def apply(self):
         messages = list()
@@ -212,7 +219,7 @@ def SpyAction(Action):
         return [(self.user.uid, f"{self.target_user.nick} appears to be a {self.target_user.role.name}")]
 
 
-def UpgradeAction(Action):
+class UpgradeAction(Action):
     def apply(self):
         messages = [(self.user.uid, f"you've upgraded {self.target_user.nick}, hopefully that was the right thing to do...")]
         if self.role.upgrade_to.new_role_choices:
@@ -222,3 +229,7 @@ def UpgradeAction(Action):
             self.target_user.role.abilities += self.role.upgrade_to.add_abilities
             # TODO: message
         return messages
+
+class RevealAction(Action):
+    def apply(self):
+        return []

@@ -172,7 +172,7 @@ class Game:
         messages += [(self.channel, "deceased are: {}".format(
             ', '.join([f"{user.nick} ({user.role.name})" for user in self.users.values() if not user.is_alive])
         ))]
-        self.channel, self.users = None, []
+        self.channel = None
         return messages
 
     def _phase_change(self):
@@ -295,7 +295,7 @@ class Game:
 
         for ability in self.users[uid].role.abilities:
             # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
-            if act[0].lower() != ability.name or self.phase_name not in [phase.name for phase in ability.phases]:
+            if not ability.name.startswith(act[0].lower()) or self.phase_name not in [phase.name for phase in ability.phases]:
                 continue
             elif channel and not ability.command_public:
                 return [(uid, f"please PM/notice {self.bot} with your commands instead.")]
