@@ -61,6 +61,8 @@ class Role:
             f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
 
+    def __str__(self):
+        return self.name
 
 class Hikikomori(Role):
     name = 'hikikomori'

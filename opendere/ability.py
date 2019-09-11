@@ -27,7 +27,7 @@ class Ability:
     def __call__(self, game, user, target_user=None):
         previous_action = next((act for act in game.phase_actions if isinstance(act, self.action) and user == act.user), None)
         if previous_action and previous_action.target_user == target_user:
-            return [(game.channel if self.command_public else user.uid, f"{user.nick}: you've already told me you were going to do that, baka ;_;")]
+            return [(game.channel if self.command_public else user.uid, f"{user}: you've already told me you were going to do that, baka ;_;")]
 
         if previous_action:
             game.phase_actions.remove(previous_action)

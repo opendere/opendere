@@ -196,18 +196,18 @@ class StalkAction(Action):
         messages = list()
         for action in self.game.phase_actions + self.game.completed_actions:
             if self.target_user == action.user:
-                messages += [(self.user.uid, f"just what exactly was {action.user.nick} doing, visiting {action.target_user.nick} last night?!")]
+                messages += [(self.user.uid, f"just what exactly was {action.user} doing, visiting {action.target_user} last night?!")]
         if messages:
             return messages
-        return [(self.user.uid, f"{self.target_user.nick} stayed at home last night. boring!")]
+        return [(self.user.uid, f"{self.target_user} stayed at home last night. boring!")]
 
 
 class CheckAction(Action):
     action_verb = 'checking'
     def apply(self):
         if self.target_user.alignment:
-            return [(self.user.uid, f"{self.target_user.nick} appears to be {self.target_user.alignment}")]
-        return [(self.user.uid, f"{self.target_user.nick} appears to be {self.target_user.role.default_alignment.name}")]
+            return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.alignment}")]
+        return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.role.default_alignment.name}")]
 
 
 class SpyAction(Action):
@@ -215,16 +215,16 @@ class SpyAction(Action):
     def apply(self):
         messages = list()
         if self.target_user.appear_as:
-            return [(self.user.uid, f"{self.target_user.nick} appears to be a {self.target_user.appear_as}")]
-        return [(self.user.uid, f"{self.target_user.nick} appears to be a {self.target_user.role.name}")]
+            return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.appear_as}")]
+        return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.role}")]
 
 
 class UpgradeAction(Action):
     def apply(self):
-        messages = [(self.user.uid, f"you've upgraded {self.target_user.nick}, hopefully that was the right thing to do...")]
+        messages = [(self.user.uid, f"you've upgraded {self.target_user}, hopefully that was the right thing to do...")]
         if self.role.upgrade_to.new_role_choices:
             self.target_user.role = random.choice(self.role.upgrade_to.new_role_choices)()
-            messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role.name}. {self.target_user.role.description}")]
+            messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role}. {self.target_user.role.description}")]
         else:
             self.target_user.role.abilities += self.role.upgrade_to.add_abilities
             # TODO: message

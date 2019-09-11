@@ -167,10 +167,10 @@ class Game:
         else:
             return []
         messages += [(self.channel, "survivors are: {}".format(
-            ', '.join([f"{user.nick} ({user.role.name})" for user in self.users.values() if user.is_alive])
+            ', '.join([f"{user} ({user.role})" for user in self.users.values() if user.is_alive])
         ))]
         messages += [(self.channel, "deceased are: {}".format(
-            ', '.join([f"{user.nick} ({user.role.name})" for user in self.users.values() if not user.is_alive])
+            ', '.join([f"{user} ({user.role})" for user in self.users.values() if not user.is_alive])
         ))]
         self.channel = None
         return messages
@@ -190,7 +190,7 @@ class Game:
             random.shuffle(player_roles)
             for i, user in enumerate(self.users.values()):
                 user.role = player_roles[i]
-                messages += [(user.uid, f"you're a {user.role.name}. {user.role.description}")]
+                messages += [(user.uid, f"you're a {user.role}. {user.role.description}")]
             self.phase = 0
         else:
             messages += list(set(self._process_phase_actions()))
@@ -272,7 +272,7 @@ class Game:
                 # a 1 in 6 chance of being a yandere
                 self.users[uid].role = random.choice(self._select_roles(6))
                 messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
-                messages.append((uid, f"you've joined the current game with role {self.users[uid].role.name} - {self.users[uid].role.description}"))
+                messages.append((uid, f"you've joined the current game with role {self.users[uid].role} - {self.users[uid].role.description}"))
 
             else:
                 messages.append((uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
@@ -377,18 +377,18 @@ class Game:
         target_user.is_alive = False
 
         if self.phase_name == 'night':
-            return [(self.channel, f"{target_user.nick} was brutally murdered! who could've done this {self.random_emoji}")]
+            return [(self.channel, f"{target_user} was brutally murdered! who could've done this {self.random_emoji}")]
 
         elif self.phase_name == 'day' and user is not None:
             return [(self.channel, "{} runs {} through with a katana, and it turns out they were{}a yandere!".format(
-                user.nick,
-                target_user.nick,
+                user,
+                target_user,
                 ' ' if target_user.role.is_yandere else ' NOT '
             ))]
 
         else:
             return [(self.channel, "{} was lynched, and it turns out they were{}a yandere!".format(
-                target_user.nick,
+                target_user,
                 ' ' if target_user.role.is_yandere else ' NOT '
             ))]
 
