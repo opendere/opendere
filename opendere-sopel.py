@@ -135,7 +135,7 @@ def unvote(bot, trigger):
 def actions(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     messages = list()
-    if trigger.hostmask not in [user.uid for game in bot.memory['game'].values() for user in game.users.values()] \
+    if trigger.hostmask not in [user.uid for game in bot.memory['games'].values() for user in game.users.values()] \
             and trigger.sender not in bot.memory['games']:
         return
 
