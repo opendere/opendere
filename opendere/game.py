@@ -342,11 +342,11 @@ class Game:
         else:
             self.hurries.append(uid)
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
+            if self.phase_name:
+                messages.append((self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends."))
+            else:
+                messages.append((self.channel, f"players have {self.phase_seconds_left} seconds before the game starts."))
 
-        messages.append((self.channel, "players have {} seconds before the {}".format(
-            self.phase_seconds_left,
-            "game starts." if self.phase is None else f"{self.phase_name} ends."
-        )))
         return messages
 
     def user_hurry(self, uid):
@@ -364,9 +364,13 @@ class Game:
         elif uid in self.hurries:
             messages.append((uid, f"you've already hurried or extended the phase already."))
 
-        self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
-        self.hurries.append(uid)
-        messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!"))
+        else:
+            self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
+            self.hurries.append(uid)
+            if self.phase_name:
+                messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!"))
+            else:
+                messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the game starts!"))
 
         return messages
 

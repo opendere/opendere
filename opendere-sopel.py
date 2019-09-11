@@ -4,7 +4,7 @@
 
 import os, sys
 from sopel.module import commands, interval, rule, example
-sys.path.append(os.getcwd())
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import opendere.game
 import opendere.roles
 
@@ -25,13 +25,15 @@ def tick(bot):
     """
     tick down the timer for game state, i.e. the start timer or hurry timer
     """
-    for channel in bot.memory['games']:
+    for channel in list(bot.memory['games']):
         # if the game has ended or been reset
         if bot.memory['games'][channel].channel is None:
             del bot.memory['games'][channel]
 
         try:
             messages = bot.memory['games'][channel].tick()
+        except KeyError:
+            continue
         except opendere.game.InsufficientPlayersError:
             bot.say(bold(f"there aren't enough players to start a game of opendere in {channel}. please try again later."), channel)
             del bot.memory['games'][channel]
@@ -149,7 +151,7 @@ def actions(bot, trigger):
         game = next((game.channel for game in bot.memory['games'].values() for user in game.users.values() if user.uid == trigger.hostmask), None)
         if not game:
             return
-        messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string)
+        messages = bot.memory['games'][game].user_action(trigger.hostmask, trigger.match.string.rstrip())
 
     if not messages:
         return
