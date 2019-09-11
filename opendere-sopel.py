@@ -60,7 +60,7 @@ def reset(bot, trigger):
     del bot.memory['games'][trigger.sender]
     bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
 
-@rule(f"{command_prefix}(!opendere|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})")
+@rule(f"{command_prefix}(opendere|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})")
 @example('!opendere - join an existing (or start a new) game in #opendere')
 def join_game(bot, trigger):
     """
@@ -72,6 +72,7 @@ def join_game(bot, trigger):
 
     # if no game exists, we need to start one
     if trigger.sender not in bot.memory['games']:
+        # FIXME: ensure the player is not already in a game
         bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
 
     # if one does exist, we can then join the player to it
@@ -134,19 +135,15 @@ def unvote(bot, trigger):
 def actions(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     messages = list()
-    if trigger.sender in bot.memory['opendere_channels'] and trigger.sender not in bot.memory['games']:
-        if trigger.match.string.lstrip(command_prefix) in ['opendere', trigger.sender.lstrip('#')]:
-            bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
-        else:
-            # bot.say(trigger.sender, f"you can only start a game from {' or '.join(bot.memory['opendere_channels'])}")
-            return
+    if trigger.hostmask not in [user.uid for game in bot.memory['game'].values() for user in game.users.values()] \
+            and trigger.sender not in bot.memory['games']:
+        return
 
-    # an action that occurs in a channel, e.g. 'vote'
+    # an action that is public, e.g. '!vote'
     if trigger.sender in bot.memory['games']:
         messages = bot.memory['games'][trigger.sender].user_action(trigger.hostmask, trigger.match.string, trigger.sender)
 
-    # an action that occurs in a privmsg or notice[?], e.g. 'kill' or 'check'
-    # TODO: this probably breaks down if a user is somehow in multiple games, so we need to prevent that later...
+    # an action that is not public, e.g. 'spy' 
     elif trigger.hostmask in [user.uid for game in bot.memory['games'].values() for user in game.users.values()]:
         game = next((game.channel for game in bot.memory['games'].values() for user in game.users.values() if user.uid == trigger.hostmask), None)
         if not game:

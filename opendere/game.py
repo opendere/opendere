@@ -289,7 +289,7 @@ class Game:
         if self.phase is None or (channel and not action.startswith(self.prefix)):
             return
 
-        act = action.lstrip(self.prefix).split(maxsplit=1)
+        act = action.rstrip().lstrip(self.prefix).split(maxsplit=1)
         if not act:
             return []
 
