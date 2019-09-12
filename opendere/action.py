@@ -1,7 +1,7 @@
 from collections import defaultdict
 import random
 from opendere.common import User
-
+from opendere import roles
 
 """
 Pattern:
@@ -16,10 +16,16 @@ Pattern:
 
 
 class Action:
-    def __init__(self, game, user, target_user, previous_action=None, callback=None):
-        self.game = game
+    def __init__(self, user, target_user, game=None, ability=None, previous_action=None):
         self.user = user
         self.target_user = target_user
+        if game:
+            self.game = game
+        elif isinstance(user, User):
+            self.game = user.game
+        elif isinstance(target_user, User):
+            self.game = target_user.game
+        self.ability = ability
         self.previous_action = previous_action
         self.messages = self._get_init_messages()
 
@@ -27,7 +33,7 @@ class Action:
 
     def __call__(self):
         ret = self.apply()
-        if ret and self.user:
+        if ret and self.ability:
             self._decr_uses()
         return ret
 
@@ -54,9 +60,7 @@ class Action:
             return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
 
     def _decr_uses(self):
-        for ability in self.user.role.abilities:
-            if isinstance(self, ability.action):
-                ability.num_uses -= 1
+        self.ability.num_uses -= 1
 
     @property
     def action_verb(self):
@@ -92,7 +96,7 @@ class VoteToKillAction(Action):
     def _get_init_messages(self):
         # TODO: clean up this hack, we are only using this for considering previous_action.target_user as 'undecided'
         # in Action.__init__ previous_action should default to this maybe?
-        previous_action = self.previous_action or Action(None, None, 'undecided')
+        previous_action = self.previous_action or Action(None, 'undecided', game=self.game)
 
         if self.game.phase_name == 'day':
             reply_to = [self.game.channel]
@@ -149,10 +153,10 @@ class VoteToKillAction(Action):
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
                 for killer in (act.user for act in self.actions_of_my_type if act.target_user == most_voted_user):
-                    kill = KillAction(self.game, killer, most_voted_user)
+                    kill = KillAction(killer, most_voted_user)
                     self.game.completed_actions.append(kill)
             else:
-                kill = KillAction(self.game, None, most_voted_user)
+                kill = KillAction(None, most_voted_user)
             self.del_actions_of_type(type(self))
             return kill()
 
@@ -172,7 +176,7 @@ class GuardAction(Action):
     action_verb = 'guarding'
     def apply(self):
         if not self.target_user.role.safe_to_guard:
-            self.game.phase_actions.append(UnstoppableKillAction(self.game, None, self.user))
+            self.game.phase_actions.append(UnstoppableKillAction(None, self.user))
         return []
 
 
@@ -195,7 +199,7 @@ class StalkAction(Action):
             return []
         messages = list()
         for action in self.game.phase_actions + self.game.completed_actions:
-            if self.target_user == action.user:
+            if self.target_user == action.user and action.user != action.target_user:
                 messages += [(self.user.uid, f"just what exactly was {action.user} doing, visiting {action.target_user} last night?!")]
         if messages:
             return messages
@@ -220,16 +224,26 @@ class SpyAction(Action):
 
 
 class UpgradeAction(Action):
+    def _get_init_messages(self):
+        pass
     def apply(self):
         messages = [(self.user.uid, f"you've upgraded {self.target_user}, hopefully that was the right thing to do...")]
-        if self.role.upgrade_to.new_role_choices:
-            self.target_user.role = random.choice(self.role.upgrade_to.new_role_choices)()
+        if self.target_user.role.upgrade_to.new_role_choices:
+            role = random.choice(self.target_user.role.upgrade_to.new_role_choices)
+            self.target_user.role = role()
             messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role}. {self.target_user.role.description}")]
         else:
-            self.target_user.role.abilities += self.role.upgrade_to.add_abilities
-            # TODO: message
+            self.target_user.role.abilities += self.target_user.role.upgrade_to.add_abilities
+            messages += [(self.target_user.uid, f"you've been upgraded! you can reveal yourself to be \
+                a {self.target_user.role} to all players, by using the command `reveal`.")]
         return messages
 
 class RevealAction(Action):
+    def _get_init_messages(self):
+        pass
     def apply(self):
-        return []
+        if isinstance(self.user.role, roles.Idol):
+            messages = [(self.game.channel, f"{self.user} hands out autographed copies of their new single, 'あなたのことが好きだなんて言えないんです。', ...yay?")]
+        else:
+            messages = [(self.game.channel, f"{self.user} jumps into the spotlight and is revealed to be an upgraded {self.user.role}!")]
+        return messages

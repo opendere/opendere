@@ -31,9 +31,9 @@ class Ability:
 
         if previous_action:
             game.phase_actions.remove(previous_action)
-            action_obj = self.action(game, user, target_user, previous_action)
+            action_obj = self.action(user, target_user, ability=self, previous_action=previous_action)
         else:
-            action_obj = self.action(game, user, target_user)
+            action_obj = self.action(user, target_user, ability=self)
 
         if self.is_exclusively_phase_action or game.phase_name == 'night':
             game.phase_actions.append(action_obj)
@@ -48,7 +48,7 @@ class Ability:
             self.action_description,
             ' or '.join([phase.name for phase in self.phases]),
             'once per game' if self.num_uses != math.inf else f"once every {self.phases[0].name}",
-            self.command
+            self.command,
         )
 
 

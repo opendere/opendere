@@ -26,21 +26,16 @@ def tick(bot):
     tick down the timer for game state, i.e. the start timer or hurry timer
     """
     for channel in list(bot.memory['games']):
-        # if the game has ended or been reset
-        if bot.memory['games'][channel].channel is None:
-            del bot.memory['games'][channel]
-
         try:
             messages = bot.memory['games'][channel].tick()
-        except KeyError:
-            continue
         except opendere.game.InsufficientPlayersError:
-            bot.say(bold(f"there aren't enough players to start a game of opendere in {channel}. please try again later."), channel)
-            del bot.memory['games'][channel]
-            continue
+            messages = [(channel, f"there aren't enough players to start a game of opendere in {channel}. please try again later.")]
 
         if not messages:
             continue
+
+        if not bot.memory['games'][channel].channel:
+            del bot.memory['games'][channel]
 
         for recipient, text in messages:
             if recipient in bot.memory['opendere_channels']:
@@ -56,7 +51,6 @@ def reset(bot, trigger):
     """
     if trigger.sender not in bot.memory['games']:
         return
-    bot.memory['games'][trigger.sender].reset()
     del bot.memory['games'][trigger.sender]
     bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
 
@@ -88,7 +82,7 @@ def extend(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_extend(trigger.hostmask):
-        if recipient in bot.memory['opendere_channels']:
+        if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
@@ -99,7 +93,7 @@ def hurry(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_hurry(trigger.hostmask):
-        if recipient in bot.memory['opendere_channels']:
+        if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
@@ -111,7 +105,7 @@ def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
     for recipient, text in bot.memory['games'][trigger.sender].user_abstain(trigger.hostmask):
-        if recipient in bot.memory['opendere_channels']:
+        if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
@@ -125,7 +119,7 @@ def unvote(bot, trigger):
     for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
             "vote undecided",
             channel=trigger.sender if trigger.sender != trigger.nick else None):
-        if recipient in bot.memory['opendere_channels']:
+        if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])
@@ -154,7 +148,7 @@ def actions(bot, trigger):
         return
 
     for recipient, text in messages:
-        if recipient in bot.memory['opendere_channels']:
+        if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
             bot.notice(text, recipient.split('!')[0])

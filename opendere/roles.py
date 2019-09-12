@@ -36,6 +36,7 @@ class Role:
     abilities = []
     appearances = None
     safe_to_guard = True
+    upgrade_to = UpgradeTo(add_abilities=[ability.RevealAbility(num_uses=1, phases=[Phase.day])])
 
     def __init__(self):
         assert isinstance(self.name, str)
@@ -48,8 +49,11 @@ class Role:
         self.appearances = self.appearances or [self.name]
         self.appear_as = random.choice(self.appearances)
 
+    def __str__(self):
+        return self.name
+
     @property
-    def upgrade_to(self):
+    def ___upgrade_to(self):
         # by default, upgrade to a version role which can reveal
         return UpgradeTo(add_abilities=[ability.RevealAbility(num_uses=1, phases=[Phase.day])])
 
@@ -60,9 +64,6 @@ class Role:
             ', and can '.join([ab.description for ab in self.abilities if not ab.command_public]) or '...do nothing special. :( sorry',
             f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
-
-    def __str__(self):
-        return self.name
 
 class Hikikomori(Role):
     name = 'hikikomori'

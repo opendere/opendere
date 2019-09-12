@@ -52,7 +52,7 @@ class Game:
             roles.Shogun: 2, roles.Warrior: 4,
             roles.Samurai: 2, roles.Ronin: 4,
             roles.Shisho: 2, roles.Sensei: 4,
-            roles.Idol: 2, roles.Janitor: 4,
+            roles.Idol: 9992, roles.Janitor: 4,
             roles.Spy: 1, roles.DaySpy: 1, roles.Esper: 4,
             roles.Stalker: 2, roles.Witness: 4,
             roles.Detective: 2, roles.Snoop: 4,
@@ -115,6 +115,13 @@ class Game:
         number of players still alive
         """
         return len([user for user in self.users.values() if user.is_alive])
+
+    @property
+    def num_yanderes(self) -> int:
+        """
+        number of yanderes still alive
+        """
+        return len([user for user in self.users.values() if user.role.is_yandere])
 
     @property
     def num_yanderes_alive(self) -> int:
@@ -184,6 +191,7 @@ class Game:
 
         if self.phase is None:
             if len(self.users) <= 3:
+                self.channel = None
                 raise InsufficientPlayersError
 
             player_roles = self._select_roles(len(self.users))
@@ -200,8 +208,6 @@ class Game:
                 return messages
             self.phase += 1
 
-        # these numbers will probably need tweaking. i'm hoping for a much faster paced game than vanilla yandere
-        # i've also changed how hurry/extend mechanics work, so keep that in mind as well
         self.phase_end = datetime.now() + timedelta(seconds=(300 if self.phase_name == 'day' else 120))
 
         if (self.phase + len(self.users)) % 2:
@@ -306,7 +312,7 @@ class Game:
             elif ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid]):
                 return [(uid, "you can't do that anymore, sorry :(")]
             elif len(act) == 1:
-                return ability(self, self.users[uid], target_user=None)
+                return ability(self, self.users[uid], self.users[uid])
             elif ability.name == 'vote' and act[1] in ['abstain', 'undecided']:
                 return ability(self, self.users[uid], act[1])
             elif act[1] in ['abstain']:
@@ -320,8 +326,6 @@ class Game:
     def user_extend(self, uid):
         """
         give people more time, or, secretly let people join the game late :D
-        before the game starts, this increases the time to 60 seconds, or phase_seconds_left + 30 seconds, whichever is _less, every time it's called
-        during the game, this increases the time in the phase by a percentage, but will need to be adjusted to scale to the number of players
         """
         messages = list()
         if uid not in self.users:
@@ -341,7 +345,7 @@ class Game:
                 self.phase_end = datetime.now() + timedelta(seconds=60)
         else:
             self.hurries.append(uid)
-            self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
+            self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4,self.num_players_alive)))
             if self.phase_name:
                 messages.append((self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends."))
             else:
@@ -352,9 +356,6 @@ class Game:
     def user_hurry(self, uid):
         """
         request that the game be hurried
-        during the day this decreases the time remaining by 20% for every player that calls it at the time it's called
-        during all other phases the time decreases by 10% for every player that calls it
-        these numbers will need to be adjusted to scale to the number of players
         """
         messages = list()
 
@@ -365,7 +366,7 @@ class Game:
             messages.append((uid, f"you've already hurried or extended the phase already."))
 
         else:
-            self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//(5 if self.phase_name == 'day' else 10)))
+            self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4,self.num_players_alive)))
             self.hurries.append(uid)
             if self.phase_name:
                 messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!"))
@@ -378,6 +379,8 @@ class Game:
         self.phase_end = datetime.now() + timedelta(seconds=-1)
 
     def kill_user(self, user, target_user):
+        if not target_user.is_alive:
+            return []
         target_user.is_alive = False
 
         if self.phase_name == 'night':
