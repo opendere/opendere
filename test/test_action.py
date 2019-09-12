@@ -36,9 +36,9 @@ def test_hide_vote_kill():
 
     # u1 hides, u3 and u4 vote to kill u1
     g.phase_actions = [
-        action.VoteToKillAction(users[3], users[1]),
-        action.HideAction(users[1], users[1]),
-        action.VoteToKillAction(users[4], users[1]),
+        action.VoteKillAction(g, users[3], users[1]),
+        action.HideAction(g, users[1], None),
+        action.VoteKillAction(g, users[4], users[1]),
     ]
 
     with freeze_time(g.phase_end):

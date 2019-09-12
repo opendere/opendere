@@ -2,7 +2,8 @@
 # coding=utf-8
 """opendere sopel frontend module"""
 
-import os, sys
+import os
+import sys
 from sopel.module import commands, interval, rule, example
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import opendere.game
@@ -45,7 +46,7 @@ def tick(bot):
 
 @rule(f"^{command_prefix}(e$|end|r$|reset|restart)")
 @example('!end - end/reset the current game')
-def reset(bot, trigger):
+def reset_game(bot, trigger):
     """
     reset the game state if it's borked
     """
@@ -101,10 +102,13 @@ def hurry(bot, trigger):
 # alias for 'vote abstain'
 @rule(f"^{command_prefix}?(a$|abstain)")
 @example('!abstain - abstain from taking an action')
-def unvote(bot, trigger):
+def abstain(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
-    for recipient, text in bot.memory['games'][trigger.sender].user_abstain(trigger.hostmask):
+    for recipient, text in bot.memory['games'][trigger.sender].user_abstain(
+            trigger.hostmask,
+            trigger.sender if trigger.sender != trigger.nick else None
+        ):
         if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
@@ -116,9 +120,11 @@ def unvote(bot, trigger):
 def unvote(bot, trigger):
     if trigger.sender not in bot.memory['games']:
         return
-    for recipient, text in bot.memory['games'][trigger.sender].user_action(trigger.hostmask,
+    for recipient, text in bot.memory['games'][trigger.sender].user_action(
+            trigger.hostmask,
             "vote undecided",
-            channel=trigger.sender if trigger.sender != trigger.nick else None):
+            trigger.sender if trigger.sender != trigger.nick else None
+        ):
         if recipient in bot.memory['games']:
             bot.say(bold(text), recipient)
         else:
@@ -126,7 +132,7 @@ def unvote(bot, trigger):
 
 @rule(f"^{command_prefix}?[^$]+")
 @example("!vote <target> - use an ability against a target (e.g. 'vote kitties' or 'kill kitties')")
-def actions(bot, trigger):
+def action(bot, trigger):
     # for sopel, trigger.sender is a channel if the message is sent via a channel, and a nick if the message is sent via privmsg
     messages = list()
     if trigger.hostmask not in [user.uid for game in bot.memory['games'].values() for user in game.users.values()] \
@@ -137,7 +143,7 @@ def actions(bot, trigger):
     if trigger.sender in bot.memory['games']:
         messages = bot.memory['games'][trigger.sender].user_action(trigger.hostmask, trigger.match.string, trigger.sender)
 
-    # an action that is not public, e.g. 'spy' 
+    # an action that is not public, e.g. 'spy'
     elif trigger.hostmask in [user.uid for game in bot.memory['games'].values() for user in game.users.values()]:
         game = next((game.channel for game in bot.memory['games'].values() for user in game.users.values() if user.uid == trigger.hostmask), None)
         if not game:

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from numpy import random
-from opendere import roles, action
-from opendere.common import User, Alignment
+from opendere import roles
+from opendere.common import User, Alignment, Phase
+from opendere.ability import VoteKillAbility
 
 
 class InsufficientPlayersError(ValueError):
@@ -52,7 +53,7 @@ class Game:
             roles.Shogun: 2, roles.Warrior: 4,
             roles.Samurai: 2, roles.Ronin: 4,
             roles.Shisho: 2, roles.Sensei: 4,
-            roles.Idol: 9992, roles.Janitor: 4,
+            roles.Idol: 2, roles.Janitor: 4,
             roles.Spy: 1, roles.DaySpy: 1, roles.Esper: 4,
             roles.Stalker: 2, roles.Witness: 4,
             roles.Detective: 2, roles.Snoop: 4,
@@ -135,7 +136,11 @@ class Game:
         """
         number of yanderes who can kill, i.e. not traps
         """
-        return len([user for user in self.users.values() if user.is_alive and user.role.is_yandere for ability in user.role.abilities if ability.name == 'vote' for phase in ability.phases if phase.name == 'night'])  # TODO: this should use common.Phase
+        return len([
+            user for user in self.users.values() if user.is_alive and user.role.is_yandere
+            for ability in user.role.abilities if isinstance(ability, VoteKillAbility)
+            for phase in ability.phases if phase == Phase.night
+        ])
 
     @property
     def phase_seconds_left(self) -> float:
@@ -157,8 +162,6 @@ class Game:
     def _process_phase_actions(self):
         # man, fuck action_priority - libbies
         messages = list()
-        # TODO: completed_actions will probably need to move elsewhere
-        completed_actions = list()
 
         while self.phase_actions:
             action = self.phase_actions.pop(0)
@@ -211,14 +214,17 @@ class Game:
         self.phase_end = datetime.now() + timedelta(seconds=(300 if self.phase_name == 'day' else 120))
 
         if (self.phase + len(self.users)) % 2:
-            messages.append((self.channel, "{} NIGHT of day {}. there {} {} {}. please PM/notice {} with any night-time commands you may have, or with 'abstain' to abstain.".format(
+            messages += [(self.channel, (
+                "{} NIGHT of day {}. there {} {} {}."
+                " please PM/notice {} with any night-time commands you may have, or with 'abstain' to abstain."
+            ).format(
                 "welcome to opendere. this game starts on the" if self.phase <= 0 else "dusk sets on the",
                 self.day_num,
                 'is' if self.num_yanderes_alive == 1 else 'are',
                 self.num_yanderes_alive,
                 'yandere' if self.num_yanderes_alive == 1 else 'yanderes',
                 self.bot,
-            )))
+            ))]
         else:
             if self.phase <= 0:
                 pass
@@ -226,19 +232,23 @@ class Game:
                 random.shuffle(messages)
                 messages.insert(0, (self.channel, f"morning comes with the stench of death."))
 
-            messages.append((self.channel, "{} DAY {}. there {} {} {}. discuss whom to ruthlessly lynch before they kill you {}".format(
+            messages += [(self.channel, "{} DAY {}. there {} {} {}. discuss whom to ruthlessly lynch before they kill you {}".format(
                 "welcome to opendere. this game starts on" if self.phase <= 0 else "dawn rises on",
                 self.day_num,
                 'is' if self.num_yanderes_alive == 1 else 'are',
                 self.num_yanderes_alive,
                 'yandere' if self.num_yanderes_alive == 1 else 'yanderes',
                 self.random_emoji
-            )))
+            ))]
 
         # cleanup
         self.hurries, self.phase_actions, self.completed_actions = [], [], []
 
-        messages.append((self.channel, f"current players: {', '.join([user.nick for user in self.users.values() if user.is_alive])}. {self.phase_seconds_left} seconds left before, hopefully, one of them dies before they kill you {self.random_emoji}"))
+        messages += [(self.channel, "current players: {}. {} seconds left, before hopefully, one of them dies {}".format(
+            ', '.join([user.nick for user in self.users.values() if user.is_alive]),
+            self.phase_seconds_left,
+            self.random_emoji
+        ))]
 
         return messages
 
@@ -259,29 +269,32 @@ class Game:
 
         if not self.users:
             self.phase_end = datetime.now() + timedelta(seconds=60)
-            messages.append((self.channel, f"an opendere game is starting in {self.channel} in {self.phase_seconds_left} seconds! please type !opendere to join!"))
+            messages += [(self.channel, (
+                f"an {self.name} game is starting in {self.channel} in {self.phase_seconds_left} seconds!"
+                f" please type {self.prefix}{self.name} to join!"
+            ))]
 
         if uid in self.users:
             if self.phase is None:
-                messages.append((uid, f"you're already in the current game, which is starting in {self.phase_seconds_left} seconds."))
+                messages += [(uid, f"you're already in the current game, which is starting in {self.phase_seconds_left} seconds.")]
             else:
-                messages.append((uid, f"you're already playing in the current game."))
+                messages += [(uid, f"you're already playing in the current game.")]
 
         elif uid not in self.users:
             if self.phase is None:
                 self.users[uid] = User(self, uid, nick)
-                messages.append((uid, f"you've joined the current game, which is starting in {self.phase_seconds_left} seconds."))
+                messages += [(uid, f"you've joined the current game, which is starting in {self.phase_seconds_left} seconds.")]
 
             # allow a player to join the game late if it's the very first phase of the game
             elif self.allow_late and self.phase == 0:
                 self.users[uid] = User(self, uid, nick)
                 # a 1 in 6 chance of being a yandere
                 self.users[uid].role = random.choice(self._select_roles(6))
-                messages.append((self.channel, f"suspicious slow-poke {nick} joined the game late."))
-                messages.append((uid, f"you've joined the current game with role {self.users[uid].role} - {self.users[uid].role.description}"))
+                messages += [(self.channel, f"suspicious slow-poke {nick} joined the game late.")]
+                messages += [(uid, f"you've joined the current game with role {self.users[uid].role} - {self.users[uid].role.description}")]
 
             else:
-                messages.append((uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game."))
+                messages += [(uid, f"sorry, you can't join a game that's already in-progress. please wait for the next game.")]
         return messages
 
     def tick(self):
@@ -293,7 +306,7 @@ class Game:
         determines whether a user has the ability to take an action, then executes the action
         """
         if self.phase is None or (channel and not action.startswith(self.prefix)):
-            return
+            return []
 
         act = action.rstrip().lstrip(self.prefix).split(maxsplit=1)
         if not act:
@@ -312,15 +325,17 @@ class Game:
             elif ability.num_uses <= 0 and not any(isinstance(act, ability.action) for act in self.phase_actions if act.user == self.users[uid]):
                 return [(uid, "you can't do that anymore, sorry :(")]
             elif len(act) == 1:
-                return ability(self, self.users[uid], self.users[uid])
+                if ability.requires_target:
+                    return [(uid, "please specify who you want to use that ability on :(")]
+                return ability(self, self.users[uid], None)
             elif ability.name == 'vote' and act[1] in ['abstain', 'undecided']:
                 return ability(self, self.users[uid], act[1])
             elif act[1] in ['abstain']:
-                return user_abstain(uid, ability)
+                return self.user_abstain(uid, ability=ability)
             else:
                 target = self.get_user(act[1])
-                if not isinstance(target, User) or target == self.users[uid]:
-                    return [(uid, f"'{action}' is invalid. please try again.")]
+                if ability.requires_target and (not isinstance(target, User) or target == self.users[uid]):
+                    return [(uid, f"'{action}' on target '{act[1]}' is invalid, please try again :(")]
                 return ability(self, self.users[uid], target) + self._check_game_end()
 
     def user_extend(self, uid):
@@ -329,10 +344,10 @@ class Game:
         """
         messages = list()
         if uid not in self.users:
-            messages.append((self.channel, f"you're not playing in the current game."))
+            messages += [(self.channel, f"you're not playing in the current game.")]
 
         elif uid in self.hurries:
-            messages.append((uid, f"you've already hurried or extended the phase already."))
+            messages += [(uid, f"you've already hurried or extended the phase already.")]
 
         elif self.phase == 0:
             # this silently allows players to join the game on the first phase of the game, this is intentional behaviour.
@@ -345,11 +360,11 @@ class Game:
                 self.phase_end = datetime.now() + timedelta(seconds=60)
         else:
             self.hurries.append(uid)
-            self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4,self.num_players_alive)))
+            self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4, self.num_players_alive)))
             if self.phase_name:
-                messages.append((self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends."))
+                messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends.")]
             else:
-                messages.append((self.channel, f"players have {self.phase_seconds_left} seconds before the game starts."))
+                messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the game starts.")]
 
         return messages
 
@@ -360,18 +375,18 @@ class Game:
         messages = list()
 
         if uid not in self.users:
-            messages.append((self.channel, f"you're not playing in the current game."))
+            messages += [(self.channel, f"you're not playing in the current game.")]
 
         elif uid in self.hurries:
-            messages.append((uid, f"you've already hurried or extended the phase already."))
+            messages += [(uid, f"you've already hurried or extended the phase already.")]
 
         else:
-            self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4,self.num_players_alive)))
+            self.phase_end = self.phase_end - timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4, self.num_players_alive)))
             self.hurries.append(uid)
             if self.phase_name:
-                messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!"))
+                messages += [(self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the {self.phase_name} ends!")]
             else:
-                messages.append((self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the game starts!"))
+                messages += [(self.channel, f"tick-tock! players have {self.phase_seconds_left} seconds before the game starts!")]
 
         return messages
 
@@ -386,40 +401,26 @@ class Game:
         if self.phase_name == 'night':
             return [(self.channel, f"{target_user} was brutally murdered! who could've done this {self.random_emoji}")]
 
-        elif self.phase_name == 'day' and user is not None:
+        if self.phase_name == 'day' and user is not None:
             return [(self.channel, "{} runs {} through with a katana, and it turns out they were{}a yandere!".format(
                 user,
                 target_user,
                 ' ' if target_user.role.is_yandere else ' NOT '
             ))]
 
-        else:
-            return [(self.channel, "{} was lynched, and it turns out they were{}a yandere!".format(
-                target_user,
-                ' ' if target_user.role.is_yandere else ' NOT '
-            ))]
+        return [(self.channel, "{} was lynched, and it turns out they were{}a yandere!".format(
+            target_user,
+            ' ' if target_user.role.is_yandere else ' NOT '
+        ))]
 
-    def is_protected(self, user):
-        for act in self.phase_actions + self.completed_actions:
-            if isinstance(act, action.HideAction) and act.user == user:
-                return True
-            if isinstance(act, action.GuardAction) and act.target_user == user:
-                return True
-        return False
-
-    def user_abstain(self, uid, ability=None):
+    def user_abstain(self, uid, channel=None, ability=None):
         user = self.get_user(uid)
         for act in self.phase_actions:
             if act.user != user:
                 continue
-            elif not ability and isinstance(act, action.VoteToKillAction):
-                vote = action.VoteToKillAction(self, user, 'abstain', act)
-                self.phase_actions.remove(act)
-                self.phase_actions.append(vote)
-                return vote.messages
             elif ability and isinstance(act, ability.action):
                 self.phase_actions.remove(act)
-                ability.num_uses += 1
                 return [(uid, f"you've abstained from using your ability to {ability.name}")]
-        self.phase_actions.append(action.Action(self, user, None))
-        return [(uid, f"you've abstained from using any abilities")]
+        if channel:
+            return self.user_action(uid, f'{self.prefix}vote abstain', channel)
+        return self.user_action(uid, 'vote abstain')

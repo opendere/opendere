@@ -16,15 +16,10 @@ Pattern:
 
 
 class Action:
-    def __init__(self, user, target_user, game=None, ability=None, previous_action=None):
+    def __init__(self, game, user, target_user, ability=None, previous_action=None):
         self.user = user
         self.target_user = target_user
-        if game:
-            self.game = game
-        elif isinstance(user, User):
-            self.game = user.game
-        elif isinstance(target_user, User):
-            self.game = target_user.game
+        self.game = game
         self.ability = ability
         self.previous_action = previous_action
         self.messages = self._get_init_messages()
@@ -52,12 +47,9 @@ class Action:
         # by default just informs of action changes:
         if not self.user:
             return []
-        elif self.previous_action:
-            return [(self.user.uid,
-                     f"you've changed from {self.action_verb} {self.previous_action} to \
-                     {self.action_verb} {self.target_user}")]
-        else:
-            return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
+        if self.previous_action:
+            return [(self.user.uid, f"you've changed from {self.action_verb} {self.previous_action} to {self.action_verb} {self.target_user}")]
+        return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
 
     def _decr_uses(self):
         self.ability.num_uses -= 1
@@ -84,19 +76,18 @@ class Action:
 class KillAction(Action):
     action_verb = 'killing'
     def apply(self):
-        # kill the target
-        if self.game.is_protected(self.target_user) and not isinstance(self, UnstoppableKillAction):
+        if self.target_user.is_protected and not isinstance(self, UnstoppableKillAction):
             return []
-        else:
-            return self.game.kill_user(self.user, self.target_user)
+
+        return self.game.kill_user(self.user, self.target_user)
 
 
-class VoteToKillAction(Action):
+class VoteKillAction(Action):
     action_verb = 'voting to kill'
     def _get_init_messages(self):
         # TODO: clean up this hack, we are only using this for considering previous_action.target_user as 'undecided'
         # in Action.__init__ previous_action should default to this maybe?
-        previous_action = self.previous_action or Action(None, 'undecided', game=self.game)
+        previous_action = self.previous_action or Action(self.game, None, 'undecided')
 
         if self.game.phase_name == 'day':
             reply_to = [self.game.channel]
@@ -132,8 +123,8 @@ class VoteToKillAction(Action):
                 self.game.end_current_phase()
 
     def apply(self):
-        # at the end of the phase, the first VoteToKillAction handles this logic for all
-        # instances of this action then deletes all instances of VoteToKillAction
+        # at the end of the phase, the first VoteKillAction handles this logic for all
+        # instances of this action then deletes all instances of VoteKillAction
         vote_counts, most_voted_user = defaultdict(int), None
         for action in (act for act in self.actions_of_my_type if act.target_user):
             vote_counts[action.target_user] += 1
@@ -148,27 +139,27 @@ class VoteToKillAction(Action):
                 if isinstance(action.target_user, User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
             ), None)
 
-        if isinstance(most_voted_user, User) and not self.game.is_protected(most_voted_user):
+        if isinstance(most_voted_user, User) and not most_voted_user.is_protected:
             if self.game.phase_name == 'night':
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
                 for killer in (act.user for act in self.actions_of_my_type if act.target_user == most_voted_user):
-                    kill = KillAction(killer, most_voted_user)
+                    kill = KillAction(self.game, killer, most_voted_user)
                     self.game.completed_actions.append(kill)
             else:
-                kill = KillAction(None, most_voted_user)
+                kill = KillAction(self.game, None, most_voted_user)
             self.del_actions_of_type(type(self))
             return kill()
 
         self.del_actions_of_type(type(self))
         if self.game.phase_name == 'night':
             return [(self.game.channel, "...it seems everyone survived the night. it is a brand new day :D")]
-        else:
-            return [(self.game.channel, "you abstain from killing anyone. you should pray that was the right decision...")]
+
+        return [(self.game.channel, "you abstain from killing anyone. you should pray that was the right decision...")]
 
 
 class UnstoppableKillAction(Action):
-    # A kill that shouldn't be eliminated from the action list
+    """ A kill that shouldn't be eliminated from the action list """
     apply = KillAction.apply
 
 
@@ -176,7 +167,7 @@ class GuardAction(Action):
     action_verb = 'guarding'
     def apply(self):
         if not self.target_user.role.safe_to_guard:
-            self.game.phase_actions.append(UnstoppableKillAction(None, self.user))
+            self.game.phase_actions.append(UnstoppableKillAction(self.game, None, self.user))
         return []
 
 
@@ -194,7 +185,7 @@ class StalkAction(Action):
         # need voting to resolve first, as a yandere might not visit the target they voted for
         # as the yandere may be voting for someone who isn't most_voted_user
         # so we delay the execution of this until all votes have been completed
-        if any(isinstance(action, VoteToKillAction) for action in self.game.phase_actions):
+        if any(isinstance(action, VoteKillAction) for action in self.game.phase_actions):
             self.game.phase_actions.append(self)
             return []
         messages = list()
@@ -217,7 +208,6 @@ class CheckAction(Action):
 class SpyAction(Action):
     action_verb = 'spying on'
     def apply(self):
-        messages = list()
         if self.target_user.appear_as:
             return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.appear_as}")]
         return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.role}")]
@@ -234,8 +224,10 @@ class UpgradeAction(Action):
             messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role}. {self.target_user.role.description}")]
         else:
             self.target_user.role.abilities += self.target_user.role.upgrade_to.add_abilities
-            messages += [(self.target_user.uid, f"you've been upgraded! you can reveal yourself to be \
-                a {self.target_user.role} to all players, by using the command `reveal`.")]
+            messages += [(self.target_user.uid, (
+                f"you've been upgraded! you can reveal yourself to be a {self.target_user.role}"
+                f" to all players, by using the command `reveal`."
+            ))]
         return messages
 
 class RevealAction(Action):
@@ -243,7 +235,10 @@ class RevealAction(Action):
         pass
     def apply(self):
         if isinstance(self.user.role, roles.Idol):
-            messages = [(self.game.channel, f"{self.user} hands out autographed copies of their new single, 'あなたのことが好きだなんて言えないんです。', ...yay?")]
+            messages = [(self.game.channel, (
+                f"{self.user} hands out autographed copies of their new single,"
+                f" 'あなたのことが好きだなんて言えないんです。', ...yay?"
+            ))]
         else:
-            messages = [(self.game.channel, f"{self.user} jumps into the spotlight and is revealed to be an upgraded {self.user.role}!")]
+            messages = [(self.game.channel, "{self.user} jumps into the spotlight and is revealed to be an upgraded {self.user.role}!")]
         return messages
