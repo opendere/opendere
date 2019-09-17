@@ -12,7 +12,6 @@ class User:
         is_alive (bool): whether a player is dead or alive
         is_hidden (bool): whether a player is hiding from the mean and scary yanderes ;_;
         """
-        self.game = game
         self.uid = uid
         self.nick = nick
         self.role = None

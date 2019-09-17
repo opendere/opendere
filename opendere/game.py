@@ -3,7 +3,6 @@ from numpy import random
 from opendere import roles
 from opendere.common import User, Alignment, Phase
 from opendere.ability import VoteKillAbility
-from opendere.action import GuardAction, HideAction
 
 
 class InsufficientPlayersError(ValueError):
@@ -393,14 +392,6 @@ class Game:
 
     def end_current_phase(self):
         self.phase_end = datetime.now() + timedelta(seconds=-1)
-
-    def is_protected(self, user):
-        for act in self.phase_actions + self.completed_actions:
-            if isinstance(act, HideAction) and act.user == user:
-                return True
-            if isinstance(act, GuardAction) and act.target_user == user:
-                return True
-        return False
 
     def kill_user(self, user, target_user):
         if not target_user.is_alive:

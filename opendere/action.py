@@ -76,10 +76,19 @@ class Action:
 class KillAction(Action):
     action_verb = 'killing'
     def apply(self):
-        if self.game.is_protected(self.target_user) and not isinstance(self, UnstoppableKillAction):
+        if self.is_protected(self.game, self.target_user) and not isinstance(self, UnstoppableKillAction):
             return []
 
         return self.game.kill_user(self.user, self.target_user)
+
+    @staticmethod
+    def is_protected(game, user):
+        for act in game.phase_actions + game.completed_actions:
+            if isinstance(act, HideAction) and act.user == user:
+                return True
+            if isinstance(act, GuardAction) and act.target_user == user:
+                return True
+        return False
 
 
 class VoteKillAction(Action):
@@ -139,7 +148,7 @@ class VoteKillAction(Action):
                 if isinstance(action.target_user, User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
             ), None)
 
-        if isinstance(most_voted_user, User) and not self.game.is_protected(most_voted_user):
+        if isinstance(most_voted_user, User) and not KillAction.is_protected(self.game, most_voted_user):
             if self.game.phase_name == 'night':
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
