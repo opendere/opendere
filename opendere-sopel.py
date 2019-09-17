@@ -10,6 +10,8 @@ import opendere.game
 import opendere.roles
 
 opendere_channels = ['#opendere']
+game_name = 'opendere'
+help_prefix = '?'
 command_prefix = '!'
 
 def bold(msg):
@@ -18,8 +20,9 @@ def bold(msg):
 def setup(bot=None):
     if not bot:
         return
-    bot.memory['opendere_channels'] = opendere_channels
-    bot.memory['games'] = dict()
+    if 'games' not in bot.memory:
+        bot.memory['opendere_channels'] = opendere_channels
+        bot.memory['games'] = dict()
 
 @interval(0.1)
 def tick(bot):
@@ -30,7 +33,7 @@ def tick(bot):
         try:
             messages = bot.memory['games'][channel].tick()
         except opendere.game.InsufficientPlayersError:
-            messages = [(channel, f"there aren't enough players to start a game of opendere in {channel}. please try again later.")]
+            messages = [(channel, f"there aren't enough players to start a game of {game_name} in {channel}. please try again later.")]
 
         if not messages:
             continue
@@ -55,7 +58,7 @@ def reset_game(bot, trigger):
     del bot.memory['games'][trigger.sender]
     bot.say(bold(f"the current game in {trigger.sender} has been ended or reset."), trigger.sender)
 
-@rule(f"{command_prefix}(opendere|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})")
+@rule(f"{command_prefix}(opendere|{game_name}|{'|'.join([channel.lstrip('#') for channel in opendere_channels])})$")
 @example('!opendere - join an existing (or start a new) game in #opendere')
 def join_game(bot, trigger):
     """
@@ -68,7 +71,7 @@ def join_game(bot, trigger):
     # if no game exists, we need to start one
     if trigger.sender not in bot.memory['games']:
         # FIXME: ensure the player is not already in a game
-        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, trigger.sender.lstrip('#'), command_prefix)
+        bot.memory['games'][trigger.sender] = opendere.game.Game(trigger.sender, bot.nick, game_name, command_prefix)
 
     # if one does exist, we can then join the player to it
     for recipient, text in bot.memory['games'][trigger.sender].join_game(trigger.hostmask, trigger.nick):

@@ -3,6 +3,7 @@ from numpy import random
 from opendere import roles
 from opendere.common import User, Alignment, Phase
 from opendere.ability import VoteKillAbility
+from opendere.action import GuardAction, HideAction
 
 
 class InsufficientPlayersError(ValueError):
@@ -270,7 +271,7 @@ class Game:
         if not self.users:
             self.phase_end = datetime.now() + timedelta(seconds=60)
             messages += [(self.channel, (
-                f"an {self.name} game is starting in {self.channel} in {self.phase_seconds_left} seconds!"
+                f"a game of `{self.name}` is starting in {self.channel} in {self.phase_seconds_left} seconds!"
                 f" please type {self.prefix}{self.name} to join!"
             ))]
 
@@ -359,12 +360,12 @@ class Game:
             else:
                 self.phase_end = datetime.now() + timedelta(seconds=60)
         else:
-            self.hurries.append(uid)
             self.phase_end = self.phase_end + timedelta(seconds=((self.phase_end - datetime.now()).total_seconds()//max(4, self.num_players_alive)))
-            if self.phase_name:
-                messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends.")]
-            else:
-                messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the game starts.")]
+        self.hurries.append(uid)
+        if self.phase_name:
+            messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the {self.phase_name} ends.")]
+        else:
+            messages += [(self.channel, f"players have {self.phase_seconds_left} seconds before the game starts.")]
 
         return messages
 
@@ -392,6 +393,14 @@ class Game:
 
     def end_current_phase(self):
         self.phase_end = datetime.now() + timedelta(seconds=-1)
+
+    def is_protected(self, user):
+        for act in self.phase_actions + self.completed_actions:
+            if isinstance(act, HideAction) and act.user == user:
+                return True
+            if isinstance(act, GuardAction) and act.target_user == user:
+                return True
+        return False
 
     def kill_user(self, user, target_user):
         if not target_user.is_alive:

@@ -22,14 +22,6 @@ class User:
     def __str__(self):
         return self.nick
 
-    @property
-    def is_protected(self):
-        for act in self.game.phase_actions + self.game.completed_actions:
-            if isinstance(act, action.HideAction) and act.user == self:
-                return True
-            if isinstance(act, action.GuardAction) and act.target_user == self:
-                return True
-        return False
 
 class Alignment(Enum):
     good = 0

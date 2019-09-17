@@ -19,22 +19,21 @@ class Ability:
     requires_target = None
 
 
-    def __init__(self, num_uses=0, phases=None, command_public=False):
+    def __init__(self, num_uses=0, phases=[], command_public=False):
         """
         num_ability_uses (int): the number of times the ability can be used per game, usually either 0, 1 or infinity
         phases (List[Phase]): when the ability can be used. day, night or both
         command_public (boolean): determines whether the action is executed through private message or in the channel
         """
         self.num_uses = num_uses
-        self.phases = phases
+        self.phases = phases or []
         self.command_public = command_public
 
     def __call__(self, game, user, target_user=None):
         previous_action = next((act for act in game.phase_actions if isinstance(act, self.action) and user == act.user), None)
         if previous_action and previous_action.target_user == target_user:
-            if self.command_public:
-                return [(game.channel, f"{user}: you've already told me you were going to do that, baka ;_;")]
-            return [(user.uid, f"{user}: you've already told me you were going to do that, baka ;_;")]
+            recipient = game.channel if self.command_public else user.uid
+            return [(recipient, f"{user}: you've already told me you were going to do that, baka ;_;")]
 
         if previous_action:
             game.phase_actions.remove(previous_action)

@@ -76,7 +76,7 @@ class Action:
 class KillAction(Action):
     action_verb = 'killing'
     def apply(self):
-        if self.target_user.is_protected and not isinstance(self, UnstoppableKillAction):
+        if self.game.is_protected(self.target_user) and not isinstance(self, UnstoppableKillAction):
             return []
 
         return self.game.kill_user(self.user, self.target_user)
@@ -139,7 +139,7 @@ class VoteKillAction(Action):
                 if isinstance(action.target_user, User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
             ), None)
 
-        if isinstance(most_voted_user, User) and not most_voted_user.is_protected:
+        if isinstance(most_voted_user, User) and not self.game.is_protected(most_voted_user):
             if self.game.phase_name == 'night':
                 # adding a copy of the KillAction to completed_actions for stalker to see.
                 # if a yandere voted for someone who wasn't killed, no record is created.
@@ -200,17 +200,13 @@ class StalkAction(Action):
 class CheckAction(Action):
     action_verb = 'checking'
     def apply(self):
-        if self.target_user.alignment:
-            return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.alignment}")]
-        return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.role.default_alignment.name}")]
+        return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.alignment}")]
 
 
 class SpyAction(Action):
     action_verb = 'spying on'
     def apply(self):
-        if self.target_user.appear_as:
-            return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.appear_as}")]
-        return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.role}")]
+        return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.appear_as}")]
 
 
 class UpgradeAction(Action):
