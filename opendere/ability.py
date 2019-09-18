@@ -7,12 +7,17 @@ class Ability:
     name = None  # one-word name of the ability
     action_description = None  # brief description of the ability
     command = None  # command user runs to create the Action
+    action = action.Action  # the action this ability calls
 
     # some actions, such as Guard and Hide, cannot *LOGICALLY* be done as non-phase operations
     # this isn't for replicating yandere logic, it's for ensuring actions like "hide"
     # that aren't even sane being done "immediately" cannot be applied, because all they do
     # is update game.phase_actions
     is_exclusively_phase_action = None
+
+    # whether an ability _requires_ a target or not
+    requires_target = None
+
 
     def __init__(self, num_uses=0, phases=[], command_public=False):
         """
@@ -21,15 +26,27 @@ class Ability:
         command_public (boolean): determines whether the action is executed through private message or in the channel
         """
         self.num_uses = num_uses
-        self.phases = phases
+        self.phases = phases or []
         self.command_public = command_public
 
-    def __call__(self, apply_immediately, game, user, target_user=None):
-        action_obj = self.action(game, user, target_user)
-        if apply_immediately:
-            action_obj()
+    def __call__(self, game, user, target_user=None):
+        previous_action = next((act for act in game.phase_actions if isinstance(act, self.action) and user == act.user), None)
+        if previous_action and previous_action.target_user == target_user:
+            recipient = game.channel if self.command_public else user.uid
+            return [(recipient, f"{user}: you've already told me you were going to do that, baka ;_;")]
+
+        if previous_action:
+            game.phase_actions.remove(previous_action)
+            action_obj = self.action(game, user, target_user, ability=self, previous_action=previous_action)
         else:
+            action_obj = self.action(game, user, target_user, ability=self)
+
+        if self.is_exclusively_phase_action or game.phase_name == 'night':
             game.phase_actions.append(action_obj)
+            return action_obj.messages
+        else:
+            game.completed_actions.append(action_obj)
+            return action_obj()
 
     @property
     def description(self):
@@ -37,16 +54,17 @@ class Ability:
             self.action_description,
             ' or '.join([phase.name for phase in self.phases]),
             'once per game' if self.num_uses != math.inf else f"once every {self.phases[0].name}",
-            self.command
+            self.command,
         )
 
 
 class UpgradeAbility(Ability):
     name = 'upgrade'
-    action_description = 'upgrade any other player'
+    action_description = "upgrade another player's role"
     command = 'upgrade <user>'
     is_exclusively_phase_action = False
-    #action = UpgradeAction
+    requires_target = True
+    action = action.UpgradeAction
 
 
 class HideAbility(Ability):
@@ -54,6 +72,7 @@ class HideAbility(Ability):
     action_description = 'hide from killers'
     command = 'hide'
     is_exclusively_phase_action = True
+    requires_target = False
     action = action.HideAction
 
 
@@ -62,15 +81,22 @@ class RevealAbility(Ability):
     action_description = 'reveal to all other players'
     command = 'reveal'
     is_exclusively_phase_action = False
-    #action = RevealAction
+    requires_target = False
+    # TODO: make this a partial(RevealAction, self.reveal_as)
+    action = action.RevealAction
+    def __init__(self, *args, reveal_as=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        # allow revealing as something else
+        self.reveal_as = reveal_as
 
 
 class SpyAbility(Ability):
     name = 'spy'
-    action_description = 'inspect another player\'s role (be careful of disguised roles which may appear as other roles!)'
+    action_description = "inspect a player's role (be wary of disguised roles which can appear as other roles!)"
     command = 'spy <user>'
     is_exclusively_phase_action = False
-    #action = SpyAction
+    requires_target = True
+    action = action.SpyAction
 
 
 class StalkAbility(Ability):
@@ -78,30 +104,34 @@ class StalkAbility(Ability):
     action_description = 'learn where another player goes'
     command = 'stalk <user>'
     is_exclusively_phase_action = True
-    #action = StalkAction
+    requires_target = True
+    action = action.StalkAction
 
 
 class CheckAbility(Ability):
     name = 'check'
-    action_description = 'inspect another player\'s alignment'
+    action_description = "inspect another player's alignment"
     command = 'check <user>'
     is_exclusively_phase_action = True
-    #action = CheckAction
+    requires_target = True
+    action = action.CheckAction
 
 
 class GuardAbility(Ability):
     name = 'guard'
-    action_description = 'protect a player from any danger'
+    action_description = 'protect another player from danger (except yanderes, who may kill you :D)'
     command = 'guard <user>'
     is_exclusively_phase_action = True
+    requires_target = True
     action = action.GuardAction
 
 
 class KillAbility(Ability):
     name = 'kill'
-    action_description = 'single-handedly kill a player of their choosing'
+    action_description = 'single-handedly kill another player of their choosing'
     command = 'kill <user>'
     is_exclusively_phase_action = False
+    requires_target = True
     action = action.KillAction
 
 
@@ -115,53 +145,5 @@ class VoteKillAbility(Ability):
     action_description = 'vote with others to kill'
     command = 'vote <user>'
     is_exclusively_phase_action = True
-    action = action.VoteToKillAction
-
-    """
-    # TODO: this should be moved to VoteKillAction and other handlers
-    # NOTE: I think Ability.name should be changed to ability.commands = {command_name: num_params}
-
-    def __call__(self, game, user, target):
-
-        messages = list()
-        # TODO: night-time voting messages should go to all yanderes who can kill, not just the voter
-        reply_to = game.channel if game.phase == 'day' else user.uid
-
-        if target in ['u', 'unvote', 'undecide', 'undecided']:
-            if user not in game.votes:
-                messages.append((reply_to, f"{user.nick}: you're already undecided. {game.list_votes}"))
-            else:
-                prev = game.votes.pop(user)
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to undecided. {game.list_votes}"))
-
-        elif target in ['a', 'abstain']:
-            if user not in game.votes:
-                game.votes[user] = None
-                messages.append((reply_to, f"{user.nick} has voted to abstain. {game.list_votes}"))
-            elif game.votes[user] is None:
-                messages.append((reply_to, f"{user.nick}: you're already abstaining. {game.list_votes}"))
-            elif game.votes[user] is not None:
-                prev, game.votes[user] = game.votes.pop(user), None
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick} to abstain. {game.list_votes}"))
-
-        elif target is not None and user != target:
-            if user not in game.votes:
-                game.votes[user] = target
-                messages.append((reply_to, f"{user.nick} has voted for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] == target:
-                messages.append((reply_to, f"{user.nick}: you're already voting for {target.nick}. {game.list_votes}"))
-            elif game.votes[user] != target:
-                prev, game.votes[user] = game.votes.pop(user), target
-                messages.append((reply_to, f"{user.nick} has changed their vote from {prev.nick if prev is not None else 'abstain'} to {target.nick}. {game.list_votes}"))
-
-        else:
-            # should only ever get here if one votes for themselves
-            messages.append((reply_to, f"you can't vote for {target.nick if user != target else 'yourself. sorry :('}. {game.list_votes}"))
-
-        # if everyone has voted, we can change the phase after this
-        # these numbers can be increased to give people some grace time to change their votes, or for dramatic effect...
-        if game.phase_name == 'day' and len(game.votes) == game.num_players_alive:
-            game.phase_end = datetime.now() + timedelta(seconds=random.randint(3))
-
-        return messages
-    """
+    requires_target = True
+    action = action.VoteKillAction

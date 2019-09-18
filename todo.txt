@@ -14,6 +14,8 @@ nekomimi: has two lives
 role thief: take away an action from someones role
 time warper: makes voting run out in 10s or 10m once per game
 ballot rigger: steal a vote OR reassign vote OR something along those lines
+phase ender: ends the phase and all voting and actions immediately
+bomber: sets a bomb to explode during the next phase
 
 other suggestions:
 turn janitor into maid

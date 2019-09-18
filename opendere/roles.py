@@ -1,21 +1,23 @@
-from enum import Enum
 import inspect
 import math
 from numpy import random
-from datetime import datetime, timedelta
 
 from opendere import ability
+from opendere.common import Alignment, Phase
 
 
-class Alignment(Enum):
-    good = 0
-    evil = 1
-    neutral = 2
-
-
-class Phase(Enum):
-    day = 0
-    night = 1
+# TODO: there is almost certainly a cleaner way to create UpgradeTo
+class UpgradeTo:
+    def __init__(self, new_role_choices=None, add_abilities=None):
+        """
+        new_role_choices (list[Role]): the possible roles that can be upgraded to
+        add_abilities (list[Ability]): the possible abilities that can be added
+        must be one XOR the other, not both
+        """
+        assert new_role_choices or add_abilities
+        assert not new_role_choices or not add_abilities
+        self.new_role_choices = new_role_choices
+        self.add_abilities = add_abilities
 
 
 class Role:
@@ -24,7 +26,7 @@ class Role:
     is_yandare (boolean): killing all the yandere wins the game
     default_alignment (boolean): the alignment at the start of game
     ability (Ability): the ability of the role
-    upgrades (list[Role]): the possible roles that can be upgraded to
+    upgrade_to (UpgradeTo): the object describing how an upgrade action is applied
     appearance (list[str]): the list of possible appearances a role can have to spies
     safe_to_guard (boolean): whether GuardAbility dies when guarding you
     """
@@ -32,20 +34,28 @@ class Role:
     is_yandere = None
     default_alignment = None
     abilities = []
-    upgrades = []
     appearances = None
     safe_to_guard = True
+    upgrade_to = UpgradeTo(add_abilities=[ability.RevealAbility(num_uses=1, phases=[Phase.day])])
 
     def __init__(self):
         assert isinstance(self.name, str)
         assert isinstance(self.is_yandere, bool)
         assert isinstance(self.default_alignment, Alignment)
         assert isinstance(self.safe_to_guard, bool)
+        assert isinstance(self.upgrade_to, UpgradeTo)
 
         self.abilities = list(self.abilities)
-        self.upgrades = list(self.upgrades)
         self.appearances = self.appearances or [self.name]
         self.appear_as = random.choice(self.appearances)
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def ___upgrade_to(self):
+        # by default, upgrade to a version role which can reveal
+        return UpgradeTo(add_abilities=[ability.RevealAbility(num_uses=1, phases=[Phase.day])])
 
     @property
     def description(self):
@@ -54,8 +64,6 @@ class Role:
             ', and can '.join([ab.description for ab in self.abilities if not ab.command_public]) or '...do nothing special. :( sorry',
             f'you appear as a {self.appear_as}.' if self.is_yandere and self.appear_as != self.name else ''
         )
-# TODO: change all classes to PARTIALS
-
 
 class Hikikomori(Role):
     name = 'hikikomori'
@@ -75,7 +83,7 @@ class Tokokyohi(Role):
         ability.HideAbility(num_uses=1, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Hikikomori]
+    upgrade_to = UpgradeTo([Hikikomori])
 
 
 class Shogun(Role):
@@ -96,11 +104,11 @@ class Warrior(Role):
         ability.KillAbility(num_uses=1, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Shogun]
+    upgrade_to = UpgradeTo([Shogun])
 
 
 class Samurai(Role):
-    name = 'ronin'
+    name = 'samurai'
     is_yandere = False
     default_alignment = Alignment.good
     abilities = [
@@ -117,9 +125,10 @@ class Ronin(Role):
         ability.KillAbility(num_uses=1, phases=[Phase.day]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Samurai],
+    upgrade_to = UpgradeTo([Samurai])
 
 
+# TODO: set upgrade_to so Shisho is given a refreshed UpgradeAbility
 class Shisho(Role):
     name = 'shisho'
     is_yandere = False
@@ -138,7 +147,7 @@ class Sensei(Role):
         ability.UpgradeAbility(num_uses=1, phases=[Phase.day]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Shisho],
+    upgrade_to = UpgradeTo([Shisho])
 
 
 class Idol(Role):
@@ -149,7 +158,7 @@ class Idol(Role):
         ability.RevealAbility(num_uses=math.inf, phases=[Phase.day]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Sensei, Ronin],
+    upgrade_to = UpgradeTo([Sensei, Ronin])
 
 
 class Janitor(Role):
@@ -159,7 +168,7 @@ class Janitor(Role):
     abilities = [
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Idol]
+    upgrade_to = UpgradeTo([Idol])
 
 
 class Spy(Role):
@@ -190,7 +199,7 @@ class Esper(Role):
         ability.SpyAbility(num_uses=1, phases=[Phase.day, Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Spy, DaySpy]
+    upgrade_to = UpgradeTo([Spy, DaySpy])
 
 
 class Stalker(Role):
@@ -211,7 +220,7 @@ class Witness(Role):
         ability.StalkAbility(num_uses=1, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Stalker]
+    upgrade_to = UpgradeTo([Stalker])
 
 
 class Detective(Role):
@@ -233,7 +242,7 @@ class Snoop(Role):
         ability.CheckAbility(num_uses=1, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Detective]
+    upgrade_to = UpgradeTo([Detective])
     appearances = ['yandere', 'psychic yandere', 'yandere doppelganger', 'vanilla yandere', 'yandere senpai']
 
 
@@ -255,7 +264,7 @@ class Nurse(Role):
         ability.GuardAbility(num_uses=1, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Guardian]
+    upgrade_to = UpgradeTo([Guardian])
 
 
 class Civilian(Role):
@@ -265,7 +274,7 @@ class Civilian(Role):
     abilities = [
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Tokokyohi, Warrior, Janitor, Esper, Witness, Snoop, Nurse]
+    upgrade_to = UpgradeTo([Tokokyohi, Warrior, Janitor, Esper, Witness, Snoop, Nurse])
 
 
 class Tsundere(Role):
@@ -275,7 +284,7 @@ class Tsundere(Role):
     abilities = [
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [Hikikomori]
+    upgrade_to = UpgradeTo([Hikikomori])
     appearances = ['yandere', 'psychic yandere', 'yandere ronin', 'yandere senpai', 'yandere doppelganger', 'chocolate yandere']
 
 
@@ -326,7 +335,7 @@ class BakaRanger(Role):
     abilities = [
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [PsychicIdiot, IdiotSavant, Myth, NullCarrier],
+    upgrade_to = UpgradeTo([PsychicIdiot, IdiotSavant, Myth, NullCarrier],)
 
 
 class YandereSpy(Role):
@@ -374,7 +383,7 @@ class PsychicYandere(Role):
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [YandereSpy]
+    upgrade_to = UpgradeTo([YandereSpy])
     safe_to_guard = False
 
 
@@ -399,7 +408,7 @@ class CloakedYandere(Role):
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [CloakedPsychicYandere]
+    upgrade_to = UpgradeTo([CloakedPsychicYandere])
     appearances = ['civilian', 'tokokyohi', 'hikikomori', 'nurse', 'guardian', 'warrior', 'witness', 'stalker', 'shogun']
     safe_to_guard = True
 
@@ -412,7 +421,7 @@ class YandereDoppelganger(Role):
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [CloakedYandere]
+    upgrade_to = UpgradeTo([CloakedYandere])
     safe_to_guard = False
 
 
@@ -424,7 +433,7 @@ class Yandere(Role):
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.night]),
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [YandereDoppelganger, CloakedYandere, PsychicYandere, YandereSpy, YandereRonin, YandereSenpai]
+    upgrade_to = UpgradeTo([YandereDoppelganger, CloakedYandere, PsychicYandere, YandereSpy, YandereRonin, YandereSenpai])
     safe_to_guard = False
 
 
@@ -435,7 +444,7 @@ class Trap(Role):
     abilities = [
         ability.VoteKillAbility(num_uses=math.inf, phases=[Phase.day], command_public=True),
     ]
-    upgrades = [CloakedYandere, BakaRanger]
+    upgrade_to = UpgradeTo([CloakedYandere, BakaRanger])
     appearances = ['civilian', 'tokokyohi', 'hikikomori', 'nurse', 'guardian', 'warrior', 'witness', 'snoop', 'detective']
     safe_to_guard = True
 

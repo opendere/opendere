@@ -1,5 +1,7 @@
 from collections import defaultdict
-
+import random
+from opendere.common import User
+from opendere import roles
 
 """
 Pattern:
@@ -14,15 +16,47 @@ Pattern:
 
 
 class Action:
-    def __init__(self, game, user, target_user):
-        self.game = game
+    def __init__(self, game, user, target_user, ability=None, previous_action=None):
         self.user = user
         self.target_user = target_user
+        self.game = game
+        self.ability = ability
+        self.previous_action = previous_action
+        self.messages = self._get_init_messages()
+
+        self._post_init_hook()
 
     def __call__(self):
+        ret = self.apply()
+        if ret and self.ability:
+            self._decr_uses()
+        return ret
+
+    def apply(self):
         # apply the Action. Actions either update game state by changing the
         # Actions to be evaluated, or it updates the game in another way
         # returns messages resulting from the action
+        raise NotImplementedError
+
+    def _post_init_hook(self):
+        # TODO: this is a hack only applicable to the VoteKillAction, probably should be removed
+        return
+
+    def _get_init_messages(self):
+        # get the messages resulting from the initialization of the action
+        # by default just informs of action changes:
+        if not self.user:
+            return []
+        if self.previous_action:
+            return [(self.user.uid, f"you've changed from {self.action_verb} {self.previous_action} to {self.action_verb} {self.target_user}")]
+        return [(self.user.uid, f"you're {self.action_verb} {self.target_user}")]
+
+    def _decr_uses(self):
+        self.ability.num_uses -= 1
+
+    @property
+    def action_verb(self):
+        # used by _get_init_messages. If there is no action_verb specified, raises an Exception
         raise NotImplementedError
 
     @property
@@ -40,71 +74,176 @@ class Action:
 
 
 class KillAction(Action):
-    def __call__(self):
-        # kill the target
-        self.target_user.is_alive = False
-        return []
+    action_verb = 'killing'
+    def apply(self):
+        if self.is_protected(self.game, self.target_user) and not isinstance(self, UnstoppableKillAction):
+            return []
+
+        return self.game.kill_user(self.user, self.target_user)
+
+    @staticmethod
+    def is_protected(game, user):
+        for act in game.phase_actions + game.completed_actions:
+            if isinstance(act, HideAction) and act.user == user:
+                return True
+            if isinstance(act, GuardAction) and act.target_user == user:
+                return True
+        return False
 
 
-class VoteToKillAction(Action):
-    def __call__(self):
-        # at the end of the phase, the first VoteToKillAction handles this logic for all
-        # instances of this action then deletes all instances of VoteToKillAction
-        vote_counts = defaultdict(int)
-        for action in self.actions_of_my_type:
-            vote_counts[action.target_user] += 1
-        most_voted_user = max(vote_counts, key=vote_counts.get)
-        # TODO: need logic to handle case whether there is a tie for most-voted
+class VoteKillAction(Action):
+    action_verb = 'voting to kill'
+    def _get_init_messages(self):
+        # TODO: clean up this hack, we are only using this for considering previous_action.target_user as 'undecided'
+        # in Action.__init__ previous_action should default to this maybe?
+        previous_action = self.previous_action or Action(self.game, None, 'undecided')
 
-        # TODO: "abstain" is bad, it should probably be a constant
-        if most_voted_user == "abstain":
-            return []  # TODO: message something about failing to lynch
+        if self.game.phase_name == 'day':
+            reply_to = [self.game.channel]
         else:
-            self.game.phase_actions.append(
-                KillAction(self.game, None, most_voted_user)
-            )
-            return []  # TODO: some message about who was voted to be lynched
+            reply_to = [user.uid for user in self.game.users.values() if user.role.is_yandere and user.is_alive]
 
-        # ensure VoteToKillAction isn't processed twice
+        messages = [
+            (uid, f'{self.user} has changed their vote from {previous_action.target_user} to {self.target_user}')
+            for uid in reply_to
+        ]
+
+        # tally the votes here
+        vote_tally = "current_votes are: "
+        for target in {act.target_user for act in self.actions_of_my_type if isinstance(act.target_user, User)}:
+            vote_tally += f"{target}: {len([act for act in self.actions_of_my_type if act.target_user == target])}, "
+        vote_tally += f"abstain: {len([act for act in self.actions_of_my_type if act.target_user == 'abstain'])}, "
+
+        # TODO: we shouldn't care about players alive, we should care about players who can *perform this action* who are alive
+        if self.game.phase_name == 'day':
+            vote_tally += f"undecided: {self.game.num_players_alive - len([act for act in self.actions_of_my_type if act.target_user])}"
+        else:
+            vote_tally += f"undecided: {self.game.num_yanderes_alive - len([act for act in self.actions_of_my_type if act.target_user])}"
+        messages += [(uid, vote_tally) for uid in reply_to]
+
+        return messages
+
+    def _post_init_hook(self):
+        # TODO: figure out if there's a better place to end night-time stuff than here...
+
+        # also immediately end the phase if voting is completed
+        if self.game.phase_name == 'day':
+            if len({act for act in self.actions_of_my_type if act.target_user}) >= self.game.num_players_alive:
+                self.game.end_current_phase()
+
+    def apply(self):
+        # at the end of the phase, the first VoteKillAction handles this logic for all
+        # instances of this action then deletes all instances of VoteKillAction
+        vote_counts, most_voted_user = defaultdict(int), None
+        for action in (act for act in self.actions_of_my_type if act.target_user):
+            vote_counts[action.target_user] += 1
+        vote_counts = sorted(vote_counts.items(), key=lambda x: x[1], reverse=True)
+
+        if len(vote_counts) == 1 or vote_counts[0][1] > vote_counts[1][1]:
+            most_voted_user = vote_counts[0][0]
+        # at night, with ties, the first yandere to vote for someone other than abstain decides
+        elif self.game.phase_name == 'night':
+            most_voted_user = next((
+                action.target_user for action in self.actions_of_my_type
+                if isinstance(action.target_user, User) and (action.target_user in [vote_counts[0][0], vote_counts[1][0]])
+            ), None)
+
+        if isinstance(most_voted_user, User) and not KillAction.is_protected(self.game, most_voted_user):
+            if self.game.phase_name == 'night':
+                # adding a copy of the KillAction to completed_actions for stalker to see.
+                # if a yandere voted for someone who wasn't killed, no record is created.
+                for killer in (act.user for act in self.actions_of_my_type if act.target_user == most_voted_user):
+                    kill = KillAction(self.game, killer, most_voted_user)
+                    self.game.completed_actions.append(kill)
+            else:
+                kill = KillAction(self.game, None, most_voted_user)
+            self.del_actions_of_type(type(self))
+            return kill()
+
         self.del_actions_of_type(type(self))
+        if self.game.phase_name == 'night':
+            return [(self.game.channel, "...it seems everyone survived the night. it is a brand new day :D")]
+
+        return [(self.game.channel, "you abstain from killing anyone. you should pray that was the right decision...")]
 
 
 class UnstoppableKillAction(Action):
-    # A kill that shouldn't be eliminated from the action list
-    __call__ = KillAction.__call__
+    """ A kill that shouldn't be eliminated from the action list """
+    apply = KillAction.apply
 
 
 class GuardAction(Action):
-    def __call__(self):
-        # eliminate any actions that kill self.target_user
-        self.game.phase_actions = [
-            action for action in self.game.phase_actions
-            if not (isinstance(action, KillAction) and action.target_user == self.target_user)
-        ]
-        # kill self if the guarded role isn't safe to guard
+    action_verb = 'guarding'
+    def apply(self):
         if not self.target_user.role.safe_to_guard:
-            self.game.phase_actions.append(
-                UnstoppableKillAction(self.game, self.target_user, self.user)
-            )
+            self.game.phase_actions.append(UnstoppableKillAction(self.game, None, self.user))
         return []
 
 
 class HideAction(Action):
-    is_legal_during_day = False
-    def __call__(self):
-        # eliminate any actions that kill self.user
-        self.game.phase_actions = [
-            action for action in self.game.phase_actions
-            if not (isinstance(action, KillAction) and action.target_user == self.user)
-        ]
+    def _get_init_messages(self):
+        return [(self.user.uid, "you're hiding from the scary yanderes :D")]
+
+    def apply(self):
         return []
 
 
-# determines the order in which actions are evaluated. Many actions override other actions.
-action_priority = [
-    VoteToKillAction,
-    GuardAction,
-    HideAction,
-    KillAction,
-    UnstoppableKillAction,
-]
+class StalkAction(Action):
+    action_verb = 'stalking'
+    def apply(self):
+        # need voting to resolve first, as a yandere might not visit the target they voted for
+        # as the yandere may be voting for someone who isn't most_voted_user
+        # so we delay the execution of this until all votes have been completed
+        if any(isinstance(action, VoteKillAction) for action in self.game.phase_actions):
+            self.game.phase_actions.append(self)
+            return []
+        messages = list()
+        for action in self.game.phase_actions + self.game.completed_actions:
+            if self.target_user == action.user and action.user != action.target_user:
+                messages += [(self.user.uid, f"just what exactly was {action.user} doing, visiting {action.target_user} last night?!")]
+        if messages:
+            return messages
+        return [(self.user.uid, f"{self.target_user} stayed at home last night. boring!")]
+
+
+class CheckAction(Action):
+    action_verb = 'checking'
+    def apply(self):
+        return [(self.user.uid, f"{self.target_user} appears to be {self.target_user.alignment}")]
+
+
+class SpyAction(Action):
+    action_verb = 'spying on'
+    def apply(self):
+        return [(self.user.uid, f"{self.target_user} appears to be a {self.target_user.appear_as}")]
+
+
+class UpgradeAction(Action):
+    def _get_init_messages(self):
+        pass
+    def apply(self):
+        messages = [(self.user.uid, f"you've upgraded {self.target_user}, hopefully that was the right thing to do...")]
+        if self.target_user.role.upgrade_to.new_role_choices:
+            role = random.choice(self.target_user.role.upgrade_to.new_role_choices)
+            self.target_user.role = role()
+            messages += [(self.target_user.uid, f"you've been upgraded to a {self.target_user.role}. {self.target_user.role.description}")]
+        else:
+            self.target_user.role.abilities += self.target_user.role.upgrade_to.add_abilities
+            messages += [(self.target_user.uid, (
+                f"you've been upgraded! you can reveal yourself to be a {self.target_user.role}"
+                f" to all players, by using the command `reveal`."
+            ))]
+        return messages
+
+class RevealAction(Action):
+    def _get_init_messages(self):
+        pass
+    def apply(self):
+        if isinstance(self.user.role, roles.Idol):
+            messages = [(self.game.channel, (
+                f"{self.user} hands out autographed copies of their new single,"
+                f" 'あなたのことが好きだなんて言えないんです。', ...yay?"
+            ))]
+        else:
+            messages = [(self.game.channel, "{self.user} jumps into the spotlight and is revealed to be an upgraded {self.user.role}!")]
+        return messages
